@@ -6,12 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarClock, ChevronLeft } from "lucide-react";
 import { activeItems, suggestedReturnDate, useVault } from "@/lib/store";
 import { formatDate, today } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, EmptyState, Field, Input, Select } from "@/components/ui";
 import { ItemRow } from "@/components/vault";
 
 export default function TakeOutPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <TakeOut />
     </Suspense>
   );
@@ -21,6 +23,7 @@ function TakeOut() {
   const router = useRouter();
   const params = useSearchParams();
   const { state, currentUser, takeOut, eventById } = useVault();
+  const t = useT();
 
   const preselectItem = params.get("id");
   const preselectEvent = params.get("event") ?? "";
@@ -32,12 +35,8 @@ function TakeOut() {
   );
   const [holderId, setHolderId] = useState(currentUser.id);
   const [eventId, setEventId] = useState(preselectEvent);
-  const [reason, setReason] = useState(
-    preselectEvent ? (eventById(preselectEvent)?.name ?? "") : "",
-  );
-  const [returnOn, setReturnOn] = useState(
-    suggestedReturnDate(eventById(preselectEvent)?.endsOn),
-  );
+  const [reason, setReason] = useState(preselectEvent ? (eventById(preselectEvent)?.name ?? "") : "");
+  const [returnOn, setReturnOn] = useState(suggestedReturnDate(eventById(preselectEvent)?.endsOn));
 
   /**
    * Choosing an event auto-fills the reason and sets the due date to the day
@@ -80,15 +79,18 @@ function TakeOut() {
         className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-text"
       >
         <ChevronLeft className="size-4" />
-        Movements
+        {t("movements.title")}
       </Link>
-      <h1 className="mb-5 text-xl font-semibold tracking-tight sm:text-2xl">Take out</h1>
+      <h1 className="mb-5 text-xl font-semibold tracking-tight sm:text-2xl">{t("takeout.title")}</h1>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Select items"
-            description={`${selected.length} of ${available.length} selected`}
+            title={t("takeout.selectItems")}
+            description={t("takeout.selectedOf", {
+              selected: selected.length,
+              total: available.length,
+            })}
             action={
               selected.length > 0 ? (
                 <button
@@ -96,15 +98,15 @@ function TakeOut() {
                   onClick={() => setSelected([])}
                   className="text-sm text-gold hover:underline"
                 >
-                  Clear
+                  {t("common.clear")}
                 </button>
               ) : null
             }
           />
           {available.length === 0 ? (
             <EmptyState
-              title="Nothing available"
-              description="Only items currently in a locker can be taken out."
+              title={t("takeout.nothingAvailable")}
+              description={t("takeout.nothingAvailableDesc")}
             />
           ) : (
             <div className="max-h-[28rem] divide-y divide-border overflow-y-auto">
@@ -123,24 +125,24 @@ function TakeOut() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Details" />
+            <CardHeader title={t("takeout.details")} />
             <div className="space-y-3 p-4">
-              <Field label="Who is taking it" required>
+              <Field label={t("takeout.whoIsTaking")} required>
                 <Select value={holderId} onChange={(e) => setHolderId(e.target.value)}>
                   {state.users
                     .filter((u) => u.isActive)
                     .map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.displayName}
-                        {u.id === currentUser.id ? " (you)" : ""}
+                        {u.id === currentUser.id ? ` (${t("common.you")})` : ""}
                       </option>
                     ))}
                 </Select>
               </Field>
 
-              <Field label="For an event?" hint="Sets the due date to the day after it ends">
+              <Field label={t("takeout.forEvent")} hint={t("takeout.forEventHint")}>
                 <Select value={eventId} onChange={(e) => onEventChange(e.target.value)}>
-                  <option value="">Not for an event</option>
+                  <option value="">{t("takeout.notForEvent")}</option>
                   {state.events.map((ev) => (
                     <option key={ev.id} value={ev.id}>
                       {ev.name} — {formatDate(ev.startsOn)}
@@ -149,15 +151,15 @@ function TakeOut() {
                 </Select>
               </Field>
 
-              <Field label="Reason">
+              <Field label={t("common.reason")}>
                 <Input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Wedding, daily wear, photoshoot…"
+                  placeholder={t("takeout.reasonPlaceholder")}
                 />
               </Field>
 
-              <Field label="Expected return" required>
+              <Field label={t("takeout.expectedReturn")} required>
                 <Input
                   type="date"
                   value={returnOn}
@@ -172,19 +174,17 @@ function TakeOut() {
             <div className="flex items-start gap-3 p-4">
               <CalendarClock className="mt-0.5 size-5 shrink-0 text-muted" />
               <p className="text-sm text-muted">
-                A reminder fires the morning {selected.length === 1 ? "this item" : "these items"}{" "}
-                {returnOn ? `is due back (${formatDate(returnOn)})` : "become due"}, and again each
-                day it stays overdue.
+                {t("takeout.reminderNote", { date: formatDate(returnOn) })}
               </p>
             </div>
           </Card>
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => router.back()}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="primary" disabled={!valid} onClick={submit}>
-              Take out {selected.length > 0 ? `${selected.length} item${selected.length > 1 ? "s" : ""}` : ""}
+              {t("takeout.action", { n: selected.length })}
             </Button>
           </div>
         </div>

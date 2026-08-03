@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Camera, CheckCircle2, QrCode, ScanLine, TriangleAlert } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
+import { useT } from "@/lib/i18n";
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Select } from "@/components/ui";
 import { ItemRow, StatusBadge } from "@/components/vault";
 import { cn } from "@/lib/utils";
@@ -12,8 +13,9 @@ import { cn } from "@/lib/utils";
 type Mode = "lookup" | "verify";
 
 export default function ScanPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <Scan />
     </Suspense>
   );
@@ -22,6 +24,7 @@ export default function ScanPage() {
 function Scan() {
   const prefill = useSearchParams().get("id");
   const { state, itemById, recordLockerVisit } = useVault();
+  const t = useT();
 
   const [mode, setMode] = useState<Mode>("lookup");
   const [scannedId, setScannedId] = useState<string | null>(prefill);
@@ -53,22 +56,19 @@ function Scan() {
 
   return (
     <>
-      <PageHeader
-        title="Scan"
-        subtitle="Every item has a stable ID, so printed labels never need reprinting."
-      />
+      <PageHeader title={t("scan.title")} subtitle={t("scan.subtitle")} />
 
       <div className="mb-4 flex gap-1 rounded-lg border border-border bg-surface p-1">
         {(
           [
-            ["lookup", "Look up an item"],
-            ["verify", "Verify a locker"],
+            ["lookup", t("scan.modeLookup")],
+            ["verify", t("scan.modeVerify")],
           ] as const
         ).map(([key, label]) => (
           <button
             key={key}
             type="button"
-            onClick={() => setMode(key)}
+            onClick={() => setMode(key as Mode)}
             className={cn(
               "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
               mode === key ? "bg-gold-soft text-gold-deep" : "text-muted hover:text-text",
@@ -86,13 +86,10 @@ function Scan() {
             <Camera className="size-10" />
             <ScanLine className="absolute inset-x-0 top-1/2 size-10 animate-pulse text-gold" />
           </div>
-          <p className="px-6 text-center text-sm">
-            Camera preview appears here once <code className="text-xs">html5-qrcode</code> is wired
-            in. Use the button below to simulate a scan.
-          </p>
+          <p className="max-w-md px-6 text-center text-sm">{t("scan.cameraNote")}</p>
           <Button variant="primary" size="sm" onClick={simulateScan}>
             <QrCode className="size-4" />
-            Simulate scan
+            {t("scan.simulate")}
           </Button>
         </div>
       </Card>
@@ -101,14 +98,14 @@ function Scan() {
         item ? (
           <Card>
             <CardHeader
-              title="Scanned"
+              title={t("scan.scanned")}
               action={
                 <button
                   type="button"
                   onClick={() => setScannedId(null)}
                   className="text-sm text-gold hover:underline"
                 >
-                  Clear
+                  {t("common.clear")}
                 </button>
               }
             />
@@ -121,13 +118,13 @@ function Scan() {
                     href={`/movements/takeout/?id=${item.id}`}
                     className="rounded-lg bg-gold px-3 py-2 text-sm font-medium text-white"
                   >
-                    Take out
+                    {t("item.takeOut")}
                   </Link>
                   <Link
                     href={`/movements/transfer/?id=${item.id}`}
                     className="rounded-lg border border-border px-3 py-2 text-sm font-medium"
                   >
-                    Transfer
+                    {t("item.transfer")}
                   </Link>
                 </>
               ) : null}
@@ -136,29 +133,29 @@ function Scan() {
                   href={`/movements/return/?id=${item.id}`}
                   className="rounded-lg bg-gold px-3 py-2 text-sm font-medium text-white"
                 >
-                  Return
+                  {t("item.return")}
                 </Link>
               ) : null}
               <Link
                 href={`/jewelry/item/?id=${item.id}`}
                 className="rounded-lg border border-border px-3 py-2 text-sm font-medium"
               >
-                Open details
+                {t("scan.openDetails")}
               </Link>
             </div>
           </Card>
         ) : (
           <EmptyState
-            title="Nothing scanned yet"
-            description="Point the camera at a label, or simulate a scan above."
+            title={t("scan.nothingScanned")}
+            description={t("scan.nothingScannedDesc")}
             icon={<QrCode className="size-8" />}
           />
         )
       ) : (
         <Card>
           <CardHeader
-            title="Locker verification"
-            description={`${seen.length} of ${expected.length} confirmed`}
+            title={t("scan.verification")}
+            description={t("scan.confirmedOf", { seen: seen.length, total: expected.length })}
             action={
               seen.length > 0 ? (
                 <button
@@ -166,7 +163,7 @@ function Scan() {
                   onClick={() => setSeen([])}
                   className="text-sm text-gold hover:underline"
                 >
-                  Reset
+                  {t("common.reset")}
                 </button>
               ) : null
             }
@@ -188,7 +185,7 @@ function Scan() {
           </div>
 
           {expected.length === 0 ? (
-            <EmptyState title="This locker is empty" />
+            <EmptyState title={t("scan.emptyLocker")} />
           ) : (
             <>
               <ul className="divide-y divide-border">
@@ -218,8 +215,8 @@ function Scan() {
                 {missing.length === 0 ? (
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="flex items-center gap-2 text-sm font-medium text-ok">
-                      <CheckCircle2 className="size-4" />
-                      All {expected.length} items accounted for
+                      <CheckCircle2 className="size-4 shrink-0" />
+                      {t("scan.allAccounted", { n: expected.length })}
                     </p>
                     <Button
                       variant="primary"
@@ -229,7 +226,7 @@ function Scan() {
                         setSeen([]);
                       }}
                     >
-                      Record visit
+                      {t("scan.recordVisit")}
                     </Button>
                   </div>
                 ) : (
@@ -237,10 +234,9 @@ function Scan() {
                     <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" />
                     <span>
                       <Badge tone="bg-warn/10 text-warn border-warn/30">
-                        {missing.length} not yet scanned
+                        {t("scan.notScanned", { n: missing.length })}
                       </Badge>{" "}
-                      Keep scanning, or investigate any that cannot be found:{" "}
-                      {missing.map((m) => m.name).join(", ")}.
+                      {t("scan.keepScanning", { names: missing.map((m) => m.name).join(", ") })}
                     </span>
                   </p>
                 )}

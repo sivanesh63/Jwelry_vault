@@ -6,22 +6,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ImagePlus, ScanLine, Sparkles } from "lucide-react";
 import { useVault } from "@/lib/store";
 import { estimateValue, formatMoney, today } from "@/lib/format";
-import {
-  Button,
-  Card,
-  CardHeader,
-  Field,
-  Input,
-  Select,
-  Textarea,
-} from "@/components/ui";
-import { CATEGORY_LABEL } from "@/components/vault";
+import { categoryKey, usePurity, useT } from "@/lib/i18n";
+import { Button, Card, CardHeader, Field, Input, Select, Textarea } from "@/components/ui";
+import { CATEGORIES } from "@/components/vault";
 import { newId } from "@/lib/utils";
 import type { JewelryCategory, JewelryItem } from "@/lib/types";
 
 export default function EditJewelryPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <EditJewelry />
     </Suspense>
   );
@@ -31,6 +25,8 @@ function EditJewelry() {
   const router = useRouter();
   const id = useSearchParams().get("id") ?? undefined;
   const { state, itemById, saveItem, currentUser } = useVault();
+  const t = useT();
+  const purity = usePurity();
 
   const existing = itemById(id);
   const isNew = !existing;
@@ -98,65 +94,62 @@ function EditJewelry() {
         className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-text"
       >
         <ChevronLeft className="size-4" />
-        {existing ? existing.name : "Jewelry"}
+        {existing ? existing.name : t("nav.jewelry")}
       </Link>
 
       <h1 className="mb-5 text-xl font-semibold tracking-tight sm:text-2xl">
-        {isNew ? "Add jewelry" : "Edit jewelry"}
+        {isNew ? t("edit.addTitle") : t("edit.editTitle")}
       </h1>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Photos" description="Compressed on upload to stay inside free storage" />
+            <CardHeader title={t("edit.photos")} description={t("edit.photosDesc")} />
             <div className="flex gap-3 p-4">
               <button
                 type="button"
-                className="flex size-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-xs text-muted transition-colors hover:bg-surface-2"
+                className="flex size-24 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-xs text-muted transition-colors hover:bg-surface-2"
               >
                 <ImagePlus className="size-5" />
-                Add photo
+                {t("edit.addPhoto")}
               </button>
-              <p className="max-w-xs self-center text-xs text-muted">
-                Photos are resized to roughly 400&nbsp;KB in the browser before upload — the
-                difference between fitting ~600 photos in the free tier and ~80.
-              </p>
+              <p className="max-w-xs self-center text-xs text-muted">{t("edit.photosNote")}</p>
             </div>
           </Card>
 
           <Card>
             <CardHeader
-              title="Basics"
+              title={t("edit.basics")}
               action={
                 <Button type="button" size="sm" variant="ghost" onClick={simulateScan}>
                   <ScanLine className="size-4" />
-                  Scan invoice
+                  {t("edit.scanInvoice")}
                 </Button>
               }
             />
             <div className="space-y-3 p-4">
-              <Field label="Name" required>
+              <Field label={t("edit.name")} required>
                 <Input
                   value={form.name}
                   onChange={(e) => set("name", e.target.value)}
-                  placeholder="Temple work haram"
+                  placeholder={t("edit.namePlaceholder")}
                   autoFocus={isNew}
                 />
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Category">
+                <Field label={t("edit.category")}>
                   <Select
                     value={form.category}
                     onChange={(e) => set("category", e.target.value as JewelryCategory)}
                   >
-                    {(Object.keys(CATEGORY_LABEL) as JewelryCategory[]).map((c) => (
+                    {CATEGORIES.map((c) => (
                       <option key={c} value={c}>
-                        {CATEGORY_LABEL[c]}
+                        {t(categoryKey(c))}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="Owner" hint="Who it belongs to, not who is wearing it">
+                <Field label={t("common.owner")} hint={t("edit.ownerHint")}>
                   <Select value={form.ownerId} onChange={(e) => set("ownerId", e.target.value)}>
                     {state.users.map((u) => (
                       <option key={u.id} value={u.id}>
@@ -167,7 +160,7 @@ function EditJewelry() {
                 </Field>
               </div>
               {isNew ? (
-                <Field label="Stored in">
+                <Field label={t("edit.storedIn")}>
                   <Select
                     value={form.currentLockerId ?? ""}
                     onChange={(e) => set("currentLockerId", e.target.value)}
@@ -180,11 +173,11 @@ function EditJewelry() {
                   </Select>
                 </Field>
               ) : null}
-              <Field label="Notes">
+              <Field label={t("item.notes")}>
                 <Textarea
                   value={form.notes ?? ""}
                   onChange={(e) => set("notes", e.target.value)}
-                  placeholder="Handling instructions, which set it belongs to…"
+                  placeholder={t("edit.notesPlaceholder")}
                 />
               </Field>
             </div>
@@ -193,9 +186,9 @@ function EditJewelry() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Weight and purity" />
+            <CardHeader title={t("edit.weightPurity")} />
             <div className="grid gap-3 p-4 sm:grid-cols-2">
-              <Field label="Gross weight (g)" required>
+              <Field label={t("edit.grossWeightG")} required>
                 <Input
                   type="number"
                   step="0.1"
@@ -205,7 +198,7 @@ function EditJewelry() {
                   className={fieldTone(scanned, "grossWeight")}
                 />
               </Field>
-              <Field label="Stone weight (g)">
+              <Field label={t("edit.stoneWeightG")}>
                 <Input
                   type="number"
                   step="0.1"
@@ -222,7 +215,7 @@ function EditJewelry() {
                   }}
                 />
               </Field>
-              <Field label="Net gold weight (g)" hint="Used for valuation">
+              <Field label={t("edit.netGoldWeightG")} hint={t("edit.netGoldHint")}>
                 <Input
                   type="number"
                   step="0.1"
@@ -231,11 +224,11 @@ function EditJewelry() {
                   onChange={(e) => set("netGoldWeight", Number(e.target.value))}
                 />
               </Field>
-              <Field label="Purity (K)">
+              <Field label={t("edit.purityK")}>
                 <Select value={form.purity} onChange={(e) => set("purity", Number(e.target.value))}>
                   {[24, 22, 21, 18, 14].map((k) => (
                     <option key={k} value={k}>
-                      {k}K
+                      {purity(k)}
                     </option>
                   ))}
                 </Select>
@@ -244,29 +237,26 @@ function EditJewelry() {
             <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-2 px-4 py-3">
               <span className="flex items-center gap-1.5 text-sm text-muted">
                 <Sparkles className="size-4" />
-                Estimated value
+                {t("dashboard.estValue")}
               </span>
               <span className="tabular font-semibold">{formatMoney(preview)}</span>
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Purchase and provenance" />
+            <CardHeader title={t("edit.provenance")} />
             <div className="grid gap-3 p-4 sm:grid-cols-2">
-              <Field label="Hallmark number">
+              <Field label={t("edit.hallmarkNo")}>
                 <Input
                   value={form.hallmarkNo ?? ""}
                   onChange={(e) => set("hallmarkNo", e.target.value)}
                   className={fieldTone(scanned, "hallmarkNo")}
                 />
               </Field>
-              <Field label="Jeweler">
-                <Input
-                  value={form.jeweler ?? ""}
-                  onChange={(e) => set("jeweler", e.target.value)}
-                />
+              <Field label={t("item.jeweler")}>
+                <Input value={form.jeweler ?? ""} onChange={(e) => set("jeweler", e.target.value)} />
               </Field>
-              <Field label="Purchase date">
+              <Field label={t("edit.purchaseDate")}>
                 <Input
                   type="date"
                   value={form.purchaseDate ?? ""}
@@ -274,7 +264,7 @@ function EditJewelry() {
                   className={fieldTone(scanned, "purchaseDate")}
                 />
               </Field>
-              <Field label="Purchase price">
+              <Field label={t("item.purchasePrice")}>
                 <Input
                   type="number"
                   min="0"
@@ -286,7 +276,7 @@ function EditJewelry() {
             </div>
             {scanned.length > 0 ? (
               <p className="border-t border-border px-4 py-2.5 text-xs text-gold-deep">
-                Highlighted fields came from the scanned invoice — check them before saving.
+                {t("edit.scannedNote")}
               </p>
             ) : null}
           </Card>
@@ -295,10 +285,10 @@ function EditJewelry() {
 
       <div className="mt-5 flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={() => router.back()}>
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button type="submit" variant="primary" disabled={!valid}>
-          {isNew ? "Add item" : "Save changes"}
+          {isNew ? t("edit.addAction") : t("common.saveChanges")}
         </Button>
       </div>
     </form>

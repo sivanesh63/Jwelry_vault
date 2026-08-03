@@ -62,9 +62,26 @@ html {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  /*
+   * Tamil faces are listed after the Latin UI fonts: the browser falls through
+   * to them only for characters the earlier fonts lack, so Latin text keeps the
+   * native UI look while Tamil renders in a proper Tamil face on each platform
+   * (Nirmala UI on Windows, Tamil Sangam MN on iOS/macOS, Noto Sans Tamil on
+   * Android). Without these, Tamil can fall back to a serif or render as boxes.
+   */
+  font-family:
+    system-ui, -apple-system, "Segoe UI", "Nirmala UI", "Tamil Sangam MN",
+    "Noto Sans Tamil", "Latha", sans-serif;
   /* Room for the fixed bottom tab bar on small screens. */
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+ * Tamil stacks vowel signs above and below the base glyph, so the default
+ * line-height clips descenders and crowds adjacent rows.
+ */
+:lang(ta) {
+  line-height: 1.65;
 }
 
 /* Numeric columns (weights, money) line up when tabular. */

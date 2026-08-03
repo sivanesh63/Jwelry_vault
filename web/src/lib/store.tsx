@@ -52,8 +52,8 @@ interface VaultContextValue {
   lockerById: (id?: string) => Locker | undefined;
   itemById: (id?: string) => JewelryItem | undefined;
   eventById: (id?: string) => FamilyEvent | undefined;
-  /** Human-readable current location: locker name, holder name, or jeweler. */
-  locationOf: (item: JewelryItem) => string;
+  /** Locker name, holder name or jeweler; undefined when in transit or lost. */
+  locationOf: (item: JewelryItem) => string | undefined;
   /** Open (unreturned) movement for an item, if any. */
   openMovementOf: (jewelryId: string) => Movement | undefined;
   movementsOf: (jewelryId: string) => Movement[];
@@ -154,19 +154,23 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const itemById = useCallback((id?: string) => state.jewelry.find((j) => j.id === id), [state.jewelry]);
   const eventById = useCallback((id?: string) => state.events.find((e) => e.id === id), [state.events]);
 
+  /**
+   * Raw location name, or undefined when the position has no name of its own
+   * (in transit, lost). Callers render the localised status label in that case —
+   * see `useLocationLabel` in components/vault.tsx. Kept name-only here so the
+   * data layer stays free of display language.
+   */
   const locationOf = useCallback(
-    (item: JewelryItem): string => {
+    (item: JewelryItem): string | undefined => {
       switch (item.status) {
         case "in_locker":
-          return lockerById(item.currentLockerId)?.name ?? "Unknown locker";
+          return lockerById(item.currentLockerId)?.name;
         case "with_member":
-          return userById(item.currentHolderId)?.displayName ?? "Unknown holder";
+          return userById(item.currentHolderId)?.displayName;
         case "at_jeweler":
-          return item.jeweler ?? "At jeweler";
-        case "in_transit":
-          return "In transit";
-        case "lost":
-          return "Lost";
+          return item.jeweler;
+        default:
+          return undefined;
       }
     },
     [lockerById, userById],
@@ -203,7 +207,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
             // Guard: only items sitting in a locker can be taken out. This is the
             // client-side mirror of the unique-open-movement index in Postgres.
             if (!item || item.status !== "in_locker") continue;
-            const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "Locker";
+            const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "—";
 
             draft.movements.unshift({
               id: newId("m"),
@@ -211,7 +215,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
               jewelryId: id,
               type: "takeout",
               fromLocation: from,
-              toLocation: holder?.displayName ?? "Member",
+              toLocation: holder?.displayName ?? "—",
               actorId: draft.currentUserId,
               holderId,
               reason,
@@ -227,11 +231,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           }
         },
         {
-          action: "Took out",
+          actionKey: "audit.tookOut",
           entityType: "movement",
           entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} item(s) → ${
-            state.users.find((u) => u.id === holderId)?.displayName ?? "member"
+          detail: `${jewelryIds.length} × → ${
+            state.users.find((u) => u.id === holderId)?.displayName ?? "—"
           }${reason ? ` (${reason})` : ""}`,
         },
       );
@@ -258,11 +262,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           if (locker) locker.lastVisitedOn = today();
         },
         {
-          action: "Returned",
+          actionKey: "audit.returned",
           entityType: "movement",
           entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} item(s) → ${
-            state.lockers.find((l) => l.id === toLockerId)?.name ?? "locker"
+          detail: `${jewelryIds.length} × → ${
+            state.lockers.find((l) => l.id === toLockerId)?.name ?? "—"
           }`,
         },
       );
@@ -282,10 +286,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         },
         {
           // Logged separately so the original promise is never silently rewritten.
-          action: "Extended due date",
+          actionKey: "audit.extendedDue",
           entityType: "movement",
           entityId: jewelryId,
-          detail: `${item?.name ?? "Item"} — ${item?.expectedReturnOn ?? "?"} → ${newDate}`,
+          detail: `${item?.name ?? "—"} — ${item?.expectedReturnOn ?? "?"} → ${newDate}`,
         },
       );
     },
@@ -300,7 +304,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           for (const id of jewelryIds) {
             const item = draft.jewelry.find((j) => j.id === id);
             if (!item || item.status !== "in_locker") continue;
-            const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "Locker";
+            const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "—";
 
             draft.movements.unshift({
               id: newId("m"),
@@ -308,7 +312,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
               jewelryId: id,
               type: "transfer",
               fromLocation: from,
-              toLocation: to?.name ?? "Locker",
+              toLocation: to?.name ?? "—",
               actorId: draft.currentUserId,
               reason,
               takenAt: nowIso(),
@@ -320,11 +324,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           }
         },
         {
-          action: "Started transfer",
+          actionKey: "audit.startedTransfer",
           entityType: "movement",
           entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} item(s) → ${
-            state.lockers.find((l) => l.id === toLockerId)?.name ?? "locker"
+          detail: `${jewelryIds.length} × → ${
+            state.lockers.find((l) => l.id === toLockerId)?.name ?? "—"
           }`,
         },
       );
@@ -345,10 +349,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           }
         },
         {
-          action: "Confirmed arrival",
+          actionKey: "audit.confirmedArrival",
           entityType: "movement",
           entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} item(s) arrived`,
+          detail: `${jewelryIds.length} ×`,
         },
       );
     },
@@ -361,7 +365,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         (draft) => {
           const item = draft.jewelry.find((j) => j.id === jewelryId);
           if (!item || item.status !== "in_locker") return;
-          const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "Locker";
+          const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "—";
 
           draft.movements.unshift({
             id: newId("m"),
@@ -382,10 +386,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           item.jeweler = jeweler;
         },
         {
-          action: "Sent for service",
+          actionKey: "audit.sentForService",
           entityType: "jewelry",
           entityId: jewelryId,
-          detail: `${state.jewelry.find((j) => j.id === jewelryId)?.name ?? "Item"} → ${jeweler}`,
+          detail: `${state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—"} → ${jeweler}`,
         },
       );
     },
@@ -405,10 +409,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           item.expectedReturnOn = undefined;
         },
         {
-          action: "Collected from jeweler",
+          actionKey: "audit.collectedFromJeweler",
           entityType: "jewelry",
           entityId: jewelryId,
-          detail: state.jewelry.find((j) => j.id === jewelryId)?.name ?? "Item",
+          detail: state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—",
         },
       );
     },
@@ -426,7 +430,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
             familyId: draft.settings.familyId,
             jewelryId,
             type: "lost",
-            fromLocation: item.currentLockerId ?? item.currentHolderId ?? "Unknown",
+            fromLocation: item.currentLockerId ?? item.currentHolderId ?? "—",
             toLocation: "Lost",
             actorId: draft.currentUserId,
             reason,
@@ -437,10 +441,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           item.currentHolderId = undefined;
         },
         {
-          action: "Marked lost",
+          actionKey: "audit.markedLost",
           entityType: "jewelry",
           entityId: jewelryId,
-          detail: `${state.jewelry.find((j) => j.id === jewelryId)?.name ?? "Item"} — ${reason}`,
+          detail: `${state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—"} — ${reason}`,
         },
       );
     },
@@ -457,7 +461,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           else draft.jewelry.unshift(item);
         },
         {
-          action: isNew ? "Added item" : "Edited item",
+          actionKey: isNew ? "audit.addedItem" : "audit.editedItem",
           entityType: "jewelry",
           entityId: item.id,
           detail: item.name,
@@ -476,10 +480,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           if (item) item.isArchived = true;
         },
         {
-          action: "Archived item",
+          actionKey: "audit.archivedItem",
           entityType: "jewelry",
           entityId: jewelryId,
-          detail: state.jewelry.find((j) => j.id === jewelryId)?.name ?? "Item",
+          detail: state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—",
         },
       );
     },
@@ -496,7 +500,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           else draft.lockers.push(locker);
         },
         {
-          action: isNew ? "Added locker" : "Edited locker",
+          actionKey: isNew ? "audit.addedLocker" : "audit.editedLocker",
           entityType: "locker",
           entityId: locker.id,
           detail: locker.name,
@@ -514,10 +518,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           if (locker) locker.lastVisitedOn = today();
         },
         {
-          action: "Verified locker",
+          actionKey: "audit.verifiedLocker",
           entityType: "locker",
           entityId: lockerId,
-          detail: state.lockers.find((l) => l.id === lockerId)?.name ?? "Locker",
+          detail: state.lockers.find((l) => l.id === lockerId)?.name ?? "—",
         },
       );
     },
@@ -534,7 +538,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           else draft.events.unshift(event);
         },
         {
-          action: isNew ? "Created event" : "Edited event",
+          actionKey: isNew ? "audit.createdEvent" : "audit.editedEvent",
           entityType: "event",
           entityId: event.id,
           detail: event.name,
@@ -564,10 +568,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           });
         },
         {
-          action: "Invited member",
+          actionKey: "audit.invitedMember",
           entityType: "user",
           entityId: id,
-          detail: `${displayName} (${role})`,
+          detail: displayName,
         },
       );
     },
@@ -582,10 +586,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           if (user) user.isActive = false;
         },
         {
-          action: "Deactivated member",
+          actionKey: "audit.deactivatedMember",
           entityType: "user",
           entityId: userId,
-          detail: state.users.find((u) => u.id === userId)?.displayName ?? "Member",
+          detail: state.users.find((u) => u.id === userId)?.displayName ?? "—",
         },
       );
     },
@@ -602,13 +606,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         },
         patch.goldRatePerGram24k != null
           ? {
-              action: "Updated gold rate",
+              actionKey: "audit.updatedGoldRate",
               entityType: "settings",
               entityId: "settings",
-              detail: `₹${before.toLocaleString("en-IN")} → ₹${patch.goldRatePerGram24k.toLocaleString("en-IN")} per gram (24K)`,
+                  detail: `₹${before.toLocaleString("en-IN")} → ₹${patch.goldRatePerGram24k.toLocaleString("en-IN")}`,
             }
           : {
-              action: "Updated settings",
+              actionKey: "audit.updatedSettings",
               entityType: "settings",
               entityId: "settings",
               detail: Object.keys(patch).join(", "),

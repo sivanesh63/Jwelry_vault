@@ -151,9 +151,18 @@ export interface AuditEntry {
   id: string;
   familyId: string;
   actorId: string;
-  action: string;
+  /**
+   * Message-catalog key for the action verb ("audit.tookOut"), not display text,
+   * so the log reads in whichever language the viewer has chosen.
+   */
+  actionKey: string;
   entityType: "jewelry" | "movement" | "locker" | "event" | "user" | "settings";
   entityId: string;
+  /**
+   * Supporting context. Deliberately built from proper nouns, numbers and arrows
+   * ("Gold Bangles → Meena") rather than sentences, so it reads the same in both
+   * languages without needing a template per action.
+   */
   detail: string;
   at: string;
 }
@@ -168,8 +177,15 @@ export interface AppNotification {
     | "locker_visit"
     | "missing_document"
     | "document_expiring";
-  title: string;
-  body: string;
+  /**
+   * Values interpolated into the notification's message template.
+   *
+   * Text is not stored — the kind selects a template and this fills it, so the
+   * same notification renders in whatever language the reader has chosen. The
+   * Cloudflare Worker will do the same when it sends push, using each
+   * recipient's stored language preference.
+   */
+  params: Record<string, string | number>;
   jewelryId?: string;
   eventId?: string;
   createdAt: string;

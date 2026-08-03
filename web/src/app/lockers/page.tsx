@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Building2, CheckCircle2, Home, Plus, ShieldAlert } from "lucide-react";
 import { activeItems, lockersNeedingVisit, useVault } from "@/lib/store";
 import { daysBetween, estimateValue, formatMoneyShort, formatWeight, today } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import {
   Button,
   Card,
@@ -21,6 +22,7 @@ import type { Locker } from "@/lib/types";
 
 export default function LockersPage() {
   const { state, userById, recordLockerVisit, saveLocker } = useVault();
+  const t = useT();
   const [editing, setEditing] = useState<Locker | null>(null);
 
   const items = activeItems(state);
@@ -41,12 +43,12 @@ export default function LockersPage() {
   return (
     <>
       <PageHeader
-        title="Lockers"
-        subtitle={`${state.lockers.length} locations · ${totalItems} items secured`}
+        title={t("lockers.title")}
+        subtitle={t("lockers.subtitle", { count: state.lockers.length, items: totalItems })}
         action={
           <Button variant="primary" onClick={() => setEditing(blankLocker())}>
             <Plus className="size-4" />
-            Add
+            {t("common.add")}
           </Button>
         }
       />
@@ -67,9 +69,9 @@ export default function LockersPage() {
                 title={
                   <span className="flex items-center gap-2">
                     {locker.type === "bank" ? (
-                      <Building2 className="size-4 text-muted" />
+                      <Building2 className="size-4 shrink-0 text-muted" />
                     ) : (
-                      <Home className="size-4 text-muted" />
+                      <Home className="size-4 shrink-0 text-muted" />
                     )}
                     {locker.name}
                   </span>
@@ -83,7 +85,7 @@ export default function LockersPage() {
                     onClick={() => setEditing(locker)}
                     className="text-sm text-gold hover:underline"
                   >
-                    Edit
+                    {t("common.edit")}
                   </button>
                 }
               />
@@ -92,21 +94,21 @@ export default function LockersPage() {
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="tabular text-lg font-semibold">{contents.length}</p>
-                    <p className="text-xs text-muted">items</p>
+                    <p className="text-xs text-muted">{t("lockers.items")}</p>
                   </div>
                   <div>
                     <p className="tabular text-lg font-semibold">{formatWeight(weight)}</p>
-                    <p className="text-xs text-muted">gross</p>
+                    <p className="text-xs text-muted">{t("lockers.gross")}</p>
                   </div>
                   <div>
                     <p className="tabular text-lg font-semibold">{formatMoneyShort(value)}</p>
-                    <p className="text-xs text-muted">value</p>
+                    <p className="text-xs text-muted">{t("lockers.value")}</p>
                   </div>
                 </div>
 
                 <div>
-                  <div className="mb-1.5 flex items-center justify-between text-xs">
-                    <span className="text-muted">Share of vault</span>
+                  <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted">{t("lockers.shareOfVault")}</span>
                     <span className="tabular">
                       {totalItems > 0 ? Math.round((contents.length / totalItems) * 100) : 0}%
                     </span>
@@ -118,32 +120,37 @@ export default function LockersPage() {
                   <div className="min-w-0">
                     <p className="flex items-center gap-1.5 text-sm font-medium">
                       {overdueVisit ? (
-                        <ShieldAlert className="size-4 text-warn" />
+                        <ShieldAlert className="size-4 shrink-0 text-warn" />
                       ) : (
-                        <CheckCircle2 className="size-4 text-ok" />
+                        <CheckCircle2 className="size-4 shrink-0 text-ok" />
                       )}
-                      {overdueVisit ? "Visit overdue" : "Verified"}
+                      {overdueVisit ? t("lockers.visitOverdue") : t("lockers.verified")}
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-muted">
+                    <p className="mt-0.5 text-xs text-muted">
                       {sinceVisit == null
-                        ? "Never visited"
-                        : `${sinceVisit} days ago · every ${locker.visitIntervalDays ?? "—"} days`}
+                        ? t("lockers.neverVisited")
+                        : t("lockers.visitInterval", {
+                            days: sinceVisit,
+                            interval: locker.visitIntervalDays ?? "—",
+                          })}
                     </p>
                   </div>
                   <Button size="sm" onClick={() => recordLockerVisit(locker.id)}>
-                    Verify now
+                    {t("lockers.verifyNow")}
                   </Button>
                 </div>
 
                 <p className="text-xs text-muted">
-                  Key holder: {userById(locker.keyHolderId)?.displayName ?? "unassigned"}
+                  {t("lockers.keyHolder", {
+                    name: userById(locker.keyHolderId)?.displayName ?? t("lockers.unassigned"),
+                  })}
                 </p>
 
                 <Link
                   href={`/jewelry/?locker=${locker.id}`}
                   className="block text-sm text-gold hover:underline"
                 >
-                  View contents
+                  {t("lockers.viewContents")}
                 </Link>
               </div>
             </Card>
@@ -175,6 +182,7 @@ function LockerModal({
   onSave: (locker: Locker) => void;
 }) {
   const { state } = useVault();
+  const t = useT();
   const [form, setForm] = useState<Locker>(locker);
 
   function set<K extends keyof Locker>(key: K, value: Locker[K]) {
@@ -185,42 +193,42 @@ function LockerModal({
     <Modal
       open
       onClose={onClose}
-      title={locker.name ? "Edit locker" : "Add locker"}
+      title={locker.name ? t("lockers.editTitle") : t("lockers.addTitle")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" disabled={!form.name.trim()} onClick={() => onSave(form)}>
-            Save
+            {t("common.save")}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Name" required>
+        <Field label={t("lockers.name")} required>
           <Input
             value={form.name}
             onChange={(e) => set("name", e.target.value)}
-            placeholder="SBI Locker"
+            placeholder={t("lockers.namePlaceholder")}
           />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Type">
+          <Field label={t("lockers.type")}>
             <Select
               value={form.type}
               onChange={(e) => set("type", e.target.value as Locker["type"])}
             >
-              <option value="bank">Bank locker</option>
-              <option value="home">Home safe</option>
+              <option value="bank">{t("lockers.typeBank")}</option>
+              <option value="home">{t("lockers.typeHome")}</option>
             </Select>
           </Field>
-          <Field label="Key holder">
+          <Field label={t("lockers.keyHolderLabel")}>
             <Select
               value={form.keyHolderId ?? ""}
               onChange={(e) => set("keyHolderId", e.target.value)}
             >
-              <option value="">Unassigned</option>
+              <option value="">{t("lockers.unassigned")}</option>
               {state.users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.displayName}
@@ -228,17 +236,17 @@ function LockerModal({
               ))}
             </Select>
           </Field>
-          <Field label="Branch">
+          <Field label={t("lockers.branch")}>
             <Input value={form.branch ?? ""} onChange={(e) => set("branch", e.target.value)} />
           </Field>
-          <Field label="Locker number">
+          <Field label={t("lockers.number")}>
             <Input
               value={form.lockerNumber ?? ""}
               onChange={(e) => set("lockerNumber", e.target.value)}
             />
           </Field>
         </div>
-        <Field label="Verify every (days)" hint="Drives the locker visit reminder">
+        <Field label={t("lockers.verifyEvery")} hint={t("lockers.verifyEveryHint")}>
           <Input
             type="number"
             min="0"

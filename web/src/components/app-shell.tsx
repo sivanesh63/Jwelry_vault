@@ -21,36 +21,37 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVault } from "@/lib/store";
+import { LANG_LABEL, useI18n, type Lang, type MessageKey } from "@/lib/i18n";
 import { Avatar } from "./ui";
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: MessageKey;
   icon: typeof Gem;
 }
 
 const PRIMARY_NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/jewelry", label: "Jewelry", icon: Gem },
-  { href: "/movements", label: "Movements", icon: ListChecks },
-  { href: "/events", label: "Events", icon: CalendarDays },
-  { href: "/lockers", label: "Lockers", icon: Vault },
+  { href: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/jewelry", labelKey: "nav.jewelry", icon: Gem },
+  { href: "/movements", labelKey: "nav.movements", icon: ListChecks },
+  { href: "/events", labelKey: "nav.events", icon: CalendarDays },
+  { href: "/lockers", labelKey: "nav.lockers", icon: Vault },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
-  { href: "/members", label: "Family members", icon: Users },
-  { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/scan", label: "Scan QR", icon: QrCode },
-  { href: "/audit", label: "Audit log", icon: ScrollText },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
+  { href: "/members", labelKey: "nav.members", icon: Users },
+  { href: "/documents", labelKey: "nav.documents", icon: FileText },
+  { href: "/scan", labelKey: "nav.scan", icon: QrCode },
+  { href: "/audit", labelKey: "nav.audit", icon: ScrollText },
+  { href: "/settings", labelKey: "nav.settings", icon: SettingsIcon },
 ];
 
 /** Bottom bar on phones: four destinations plus a "More" sheet. */
 const TAB_NAV: NavItem[] = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/jewelry", label: "Jewelry", icon: Gem },
-  { href: "/scan", label: "Scan", icon: QrCode },
-  { href: "/movements", label: "Movements", icon: ListChecks },
+  { href: "/", labelKey: "nav.home", icon: LayoutDashboard },
+  { href: "/jewelry", labelKey: "nav.jewelry", icon: Gem },
+  { href: "/scan", labelKey: "nav.scanShort", icon: QrCode },
+  { href: "/movements", labelKey: "nav.movements", icon: ListChecks },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -64,6 +65,7 @@ const BARE_ROUTES = ["/login", "/onboarding"];
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { state, currentUser, switchUser } = useVault();
+  const { t } = useI18n();
   const [moreOpen, setMoreOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -98,7 +100,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="border-t border-border p-2">
+        <div className="space-y-2 border-t border-border p-2">
+          <LanguageToggle />
           <UserSwitcher
             open={userMenuOpen}
             onToggle={() => setUserMenuOpen((v) => !v)}
@@ -144,22 +147,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors",
+                  "flex flex-col items-center gap-0.5 py-2 text-center text-[11px] font-medium leading-tight transition-colors",
                   active ? "text-gold" : "text-muted",
                 )}
               >
                 <Icon className="size-5" />
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             );
           })}
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium text-muted"
+            className="flex flex-col items-center gap-0.5 py-2 text-center text-[11px] font-medium leading-tight text-muted"
           >
             <MoreHorizontal className="size-5" />
-            More
+            {t("nav.more")}
           </button>
         </nav>
       </div>
@@ -170,8 +173,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="absolute inset-0 bg-black/40" onClick={() => setMoreOpen(false)} />
           <div className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold">More</p>
-              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close">
+              <p className="text-sm font-semibold">{t("nav.more")}</p>
+              <button type="button" onClick={() => setMoreOpen(false)} aria-label={t("nav.close")}>
                 <X className="size-5 text-muted" />
               </button>
             </div>
@@ -185,11 +188,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     onClick={() => setMoreOpen(false)}
                     className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm font-medium"
                   >
-                    <Icon className="size-4 text-muted" />
-                    {item.label}
+                    <Icon className="size-4 shrink-0 text-muted" />
+                    <span className="min-w-0 truncate">{t(item.labelKey)}</span>
                   </Link>
                 );
               })}
+            </div>
+            <div className="mt-3 border-t border-border pt-3">
+              <LanguageToggle />
             </div>
             <div className="mt-3 border-t border-border pt-3">
               <UserSwitcher
@@ -210,6 +216,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
+  const { t } = useI18n();
   const Icon = item.icon;
   return (
     <Link
@@ -219,18 +226,55 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
         active ? "bg-gold-soft text-gold-deep" : "text-muted hover:bg-surface-2 hover:text-text",
       )}
     >
-      <Icon className="size-4" />
-      {item.label}
+      <Icon className="size-4 shrink-0" />
+      <span className="min-w-0 truncate">{t(item.labelKey)}</span>
     </Link>
   );
 }
 
+/**
+ * Segmented English/Tamil switch. Each language is written in its own script so
+ * it is legible to someone who cannot read the currently active one.
+ */
+function LanguageToggle() {
+  const { lang, setLang, t } = useI18n();
+  return (
+    <div
+      className="flex gap-1 rounded-lg border border-border bg-surface-2 p-1"
+      role="group"
+      aria-label={t("settings.language")}
+    >
+      {(Object.keys(LANG_LABEL) as Lang[]).map((code) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => setLang(code)}
+          aria-pressed={lang === code}
+          className={cn(
+            "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+            lang === code
+              ? "bg-surface text-text shadow-sm"
+              : "text-muted hover:text-text",
+          )}
+        >
+          {LANG_LABEL[code]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function NotificationBell({ unread }: { unread: number }) {
+  const { t } = useI18n();
   return (
     <Link
       href="/notifications"
       className="relative flex size-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-text"
-      aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
+      aria-label={
+        unread > 0
+          ? `${t("nav.notifications")} — ${t("notifications.unread", { n: unread })}`
+          : t("nav.notifications")
+      }
     >
       <Bell className="size-5" />
       {unread > 0 ? (
@@ -256,6 +300,7 @@ function UserSwitcher({
   onSelect: (id: string) => void;
 }) {
   const { state, currentUser } = useVault();
+  const { t } = useI18n();
   return (
     <div className="relative">
       <button
@@ -266,14 +311,16 @@ function UserSwitcher({
         <Avatar initials={currentUser.initials} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{currentUser.displayName}</span>
-          <span className="block text-xs capitalize text-muted">{currentUser.role}</span>
+          <span className="block text-xs text-muted">
+            {t(currentUser.role === "admin" ? "members.roleAdmin" : "members.roleMember")}
+          </span>
         </span>
         <ChevronDown className="size-4 shrink-0 text-muted" />
       </button>
       {open ? (
         <div className="absolute bottom-full left-0 mb-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
           <p className="border-b border-border px-3 py-2 text-xs text-muted">
-            Viewing as (prototype only)
+            {t("nav.viewingAs")}
           </p>
           {state.users
             .filter((u) => u.isActive)

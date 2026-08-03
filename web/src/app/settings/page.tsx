@@ -1,21 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileSpreadsheet, RotateCcw, TrendingUp } from "lucide-react";
+import { Download, FileSpreadsheet, Languages, RotateCcw, TrendingUp } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
 import { estimateValue, formatDate, formatMoney, formatMoneyShort } from "@/lib/format";
-import {
-  Button,
-  Card,
-  CardHeader,
-  Field,
-  Input,
-  Modal,
-  PageHeader,
-} from "@/components/ui";
+import { LANG_LABEL, useI18n, type Lang } from "@/lib/i18n";
+import { Button, Card, CardHeader, Field, Input, Modal, PageHeader } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const { state, updateSettings, resetDemo, currentUser } = useVault();
+  const { t, lang, setLang } = useI18n();
 
   const [rate, setRate] = useState(String(state.settings.goldRatePerGram24k));
   const [familyName, setFamilyName] = useState(state.settings.familyName);
@@ -25,8 +20,7 @@ export default function SettingsPage() {
   const items = activeItems(state);
   const totalValue = items.reduce((s, i) => s + estimateValue(i, state.settings), 0);
   const previewValue = items.reduce(
-    (s, i) =>
-      s + estimateValue(i, { ...state.settings, goldRatePerGram24k: Number(rate) || 0 }),
+    (s, i) => s + estimateValue(i, { ...state.settings, goldRatePerGram24k: Number(rate) || 0 }),
     0,
   );
   const rateChanged = Number(rate) !== state.settings.goldRatePerGram24k;
@@ -45,22 +39,22 @@ export default function SettingsPage() {
   /** CSV rather than xlsx here; SheetJS produces real .xlsx in Phase 3. */
   function exportCsv() {
     const header = [
-      "Name",
-      "Category",
-      "Gross (g)",
-      "Net gold (g)",
-      "Purity",
-      "Status",
-      "Location",
-      "Hallmark",
-      "Estimated value",
+      t("edit.name"),
+      t("edit.category"),
+      t("item.grossWeight"),
+      t("item.netGoldWeight"),
+      t("item.purity"),
+      t("common.status"),
+      t("common.location"),
+      t("item.hallmark"),
+      t("dashboard.estValue"),
     ];
     const rows = items.map((i) => [
       i.name,
       i.category,
       i.grossWeight,
       i.netGoldWeight,
-      `${i.purity}K`,
+      i.purity,
       i.status,
       i.currentLockerId ?? i.currentHolderId ?? "",
       i.hallmarkNo ?? "",
@@ -69,7 +63,8 @@ export default function SettingsPage() {
     const csv = [header, ...rows]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    // BOM so Excel opens Tamil column headers correctly rather than as mojibake.
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `jewelry-vault-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -79,45 +74,63 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" />
+      <PageHeader title={t("settings.title")} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <Card>
+            <CardHeader title={t("settings.language")} description={t("settings.languageDesc")} />
+            <div className="p-4">
+              <div className="grid grid-cols-2 gap-2">
+                {(Object.keys(LANG_LABEL) as Lang[]).map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => setLang(code)}
+                    aria-pressed={lang === code}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm font-medium transition-colors",
+                      lang === code
+                        ? "border-gold bg-gold-soft text-gold-deep"
+                        : "border-border bg-surface text-muted hover:bg-surface-2",
+                    )}
+                  >
+                    <Languages className="size-4 shrink-0" />
+                    {LANG_LABEL[code]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <Card>
             <CardHeader
-              title="Gold rate"
-              description={`Last updated ${formatDate(state.settings.goldRateUpdatedOn)}`}
+              title={t("settings.goldRate")}
+              description={t("settings.goldRateUpdated", {
+                date: formatDate(state.settings.goldRateUpdatedOn),
+              })}
             />
             <div className="space-y-3 p-4">
-              <Field
-                label="Rate per gram (24K)"
-                hint="Maintained by hand for now; automatic rate fetching is a later enhancement."
-              >
-                <Input
-                  type="number"
-                  min="0"
-                  value={rate}
-                  onChange={(e) => setRate(e.target.value)}
-                />
+              <Field label={t("settings.ratePerGram")} hint={t("settings.ratePerGramHint")}>
+                <Input type="number" min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
               </Field>
 
               <div className="rounded-lg border border-border bg-surface-2 p-3">
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between gap-2 text-sm">
                   <span className="flex items-center gap-1.5 text-muted">
-                    <TrendingUp className="size-4" />
-                    Vault value
+                    <TrendingUp className="size-4 shrink-0" />
+                    {t("settings.vaultValue")}
                   </span>
                   <span className="tabular font-semibold">{formatMoney(totalValue)}</span>
                 </div>
                 {rateChanged ? (
-                  <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-sm">
-                    <span className="text-muted">At new rate</span>
+                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-border pt-2 text-sm">
+                    <span className="text-muted">{t("settings.atNewRate")}</span>
                     <span
-                      className={
-                        previewValue >= totalValue
-                          ? "tabular font-semibold text-ok"
-                          : "tabular font-semibold text-danger"
-                      }
+                      className={cn(
+                        "tabular font-semibold",
+                        previewValue >= totalValue ? "text-ok" : "text-danger",
+                      )}
                     >
                       {formatMoney(previewValue)} ({previewValue >= totalValue ? "+" : ""}
                       {formatMoneyShort(previewValue - totalValue)})
@@ -131,18 +144,18 @@ export default function SettingsPage() {
                 disabled={!rateChanged || Number(rate) <= 0}
                 onClick={() => updateSettings({ goldRatePerGram24k: Number(rate) })}
               >
-                Update rate
+                {t("settings.updateRate")}
               </Button>
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Family" />
+            <CardHeader title={t("settings.family")} />
             <div className="space-y-3 p-4">
-              <Field label="Vault name">
+              <Field label={t("settings.vaultName")}>
                 <Input value={familyName} onChange={(e) => setFamilyName(e.target.value)} />
               </Field>
-              <Field label="Warn me this many days before an item is due">
+              <Field label={t("settings.dueSoonLead")}>
                 <Input
                   type="number"
                   min="0"
@@ -163,7 +176,7 @@ export default function SettingsPage() {
                   })
                 }
               >
-                Save
+                {t("common.save")}
               </Button>
             </div>
           </Card>
@@ -171,37 +184,34 @@ export default function SettingsPage() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader
-              title="Export"
-              description="A nightly job writes the same JSON automatically once deployed."
-            />
+            <CardHeader title={t("settings.export")} description={t("settings.exportDesc")} />
             <div className="space-y-2 p-4">
               <Button className="w-full justify-start" onClick={exportJson}>
-                <Download className="size-4" />
-                Download full backup (JSON)
+                <Download className="size-4 shrink-0" />
+                {t("settings.downloadJson")}
               </Button>
               <Button className="w-full justify-start" onClick={exportCsv}>
-                <FileSpreadsheet className="size-4" />
-                Download inventory (CSV)
+                <FileSpreadsheet className="size-4 shrink-0" />
+                {t("settings.downloadCsv")}
               </Button>
-              <p className="pt-1 text-xs text-muted">
-                Keeping an off-platform copy is what makes the vault portable — you can move to any
-                other provider with it.
-              </p>
+              <p className="pt-1 text-xs text-muted">{t("settings.exportNote")}</p>
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Prototype" description="Not part of the finished app" />
+            <CardHeader title={t("settings.prototype")} description={t("settings.prototypeDesc")} />
             <div className="space-y-3 p-4">
               <p className="text-sm text-muted">
-                Data lives in this browser only. Signed in as{" "}
-                <strong className="text-text">{currentUser.displayName}</strong> ({currentUser.role}).
-                Switch users from the sidebar to see role-dependent screens.
+                {t("settings.signedInAs", {
+                  name: currentUser.displayName,
+                  role: t(
+                    currentUser.role === "admin" ? "members.roleAdmin" : "members.roleMember",
+                  ),
+                })}
               </p>
               <Button variant="danger" onClick={() => setResetOpen(true)}>
-                <RotateCcw className="size-4" />
-                Reset to sample data
+                <RotateCcw className="size-4 shrink-0" />
+                {t("settings.resetDemo")}
               </Button>
             </div>
           </Card>
@@ -211,11 +221,11 @@ export default function SettingsPage() {
       <Modal
         open={resetOpen}
         onClose={() => setResetOpen(false)}
-        title="Reset to sample data?"
+        title={t("settings.resetTitle")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setResetOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="danger"
@@ -224,15 +234,12 @@ export default function SettingsPage() {
                 setResetOpen(false);
               }}
             >
-              Reset
+              {t("common.reset")}
             </Button>
           </>
         }
       >
-        <p className="text-sm text-muted">
-          Every change you have made in this browser will be discarded and the original sample data
-          restored.
-        </p>
+        <p className="text-sm text-muted">{t("settings.resetBody")}</p>
       </Modal>
     </>
   );

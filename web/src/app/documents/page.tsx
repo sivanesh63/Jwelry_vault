@@ -5,19 +5,15 @@ import Link from "next/link";
 import { AlertTriangle, FileText, Upload } from "lucide-react";
 import { itemsMissingDocuments, useVault } from "@/lib/store";
 import { daysBetween, formatDate, today } from "@/lib/format";
+import { docTypeKey, useT } from "@/lib/i18n";
 import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Select } from "@/components/ui";
 import type { DocumentType } from "@/lib/types";
 
-const TYPE_LABEL: Record<DocumentType, string> = {
-  invoice: "Invoice",
-  hallmark: "Hallmark certificate",
-  insurance: "Insurance",
-  warranty: "Warranty",
-  other: "Other",
-};
+const DOC_TYPES: DocumentType[] = ["invoice", "hallmark", "insurance", "warranty", "other"];
 
 export default function DocumentsPage() {
   const { state, itemById } = useVault();
+  const t = useT();
   const [type, setType] = useState<DocumentType | "all">("all");
 
   const missing = itemsMissingDocuments(state);
@@ -35,12 +31,15 @@ export default function DocumentsPage() {
   return (
     <>
       <PageHeader
-        title="Documents"
-        subtitle={`${state.documents.length} files across ${new Set(state.documents.map((d) => d.jewelryId)).size} items`}
+        title={t("documents.title")}
+        subtitle={t("documents.subtitle", {
+          files: state.documents.length,
+          items: new Set(state.documents.map((d) => d.jewelryId)).size,
+        })}
         action={
           <Button variant="primary">
             <Upload className="size-4" />
-            Upload
+            {t("common.upload")}
           </Button>
         }
       />
@@ -49,15 +48,15 @@ export default function DocumentsPage() {
         <Card className="mb-4 border-warn/30 bg-warn/5">
           <div className="flex items-start gap-3 p-4">
             <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warn" />
-            <div>
+            <div className="min-w-0">
               <p className="font-medium text-warn">
-                {expiring.length} document{expiring.length > 1 ? "s" : ""} expiring within 60 days
+                {t("documents.expiringTitle", { n: expiring.length })}
               </p>
               <ul className="mt-1 space-y-0.5 text-sm text-muted">
                 {expiring.map((d) => (
                   <li key={d.id}>
-                    {itemById(d.jewelryId)?.name ?? "Item"} — {TYPE_LABEL[d.type]}, expires{" "}
-                    {formatDate(d.expiresOn)}
+                    {itemById(d.jewelryId)?.name ?? t("common.item")} — {t(docTypeKey(d.type))},{" "}
+                    {t("documents.expiresOn", { date: formatDate(d.expiresOn) })}
                   </li>
                 ))}
               </ul>
@@ -69,8 +68,8 @@ export default function DocumentsPage() {
       {missing.length > 0 ? (
         <Card className="mb-4">
           <CardHeader
-            title="Missing an invoice"
-            description={`${missing.length} item${missing.length === 1 ? "" : "s"} with no invoice on file`}
+            title={t("documents.missingTitle")}
+            description={t("documents.missingDesc", { n: missing.length })}
           />
           <ul className="divide-y divide-border">
             {missing.map((item) => (
@@ -82,7 +81,7 @@ export default function DocumentsPage() {
                   {item.name}
                 </Link>
                 <Button size="sm" variant="ghost">
-                  Upload
+                  {t("common.upload")}
                 </Button>
               </li>
             ))}
@@ -96,10 +95,10 @@ export default function DocumentsPage() {
           onChange={(e) => setType(e.target.value as DocumentType | "all")}
           className="sm:max-w-xs"
         >
-          <option value="all">All document types</option>
-          {(Object.keys(TYPE_LABEL) as DocumentType[]).map((t) => (
-            <option key={t} value={t}>
-              {TYPE_LABEL[t]}
+          <option value="all">{t("documents.allTypes")}</option>
+          {DOC_TYPES.map((d) => (
+            <option key={d} value={d}>
+              {t(docTypeKey(d))}
             </option>
           ))}
         </Select>
@@ -107,7 +106,7 @@ export default function DocumentsPage() {
 
       <Card>
         {docs.length === 0 ? (
-          <EmptyState title="No documents" description="Upload invoices and certificates here." />
+          <EmptyState title={t("documents.none")} description={t("documents.noneDesc")} />
         ) : (
           <ul className="divide-y divide-border">
             {docs.map((doc) => (
@@ -116,17 +115,14 @@ export default function DocumentsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{doc.fileName}</p>
                   <p className="truncate text-xs text-muted">
-                    <Link
-                      href={`/jewelry/item/?id=${doc.jewelryId}`}
-                      className="hover:underline"
-                    >
-                      {itemById(doc.jewelryId)?.name ?? "Archived item"}
+                    <Link href={`/jewelry/item/?id=${doc.jewelryId}`} className="hover:underline">
+                      {itemById(doc.jewelryId)?.name ?? t("documents.archivedItem")}
                     </Link>
                     {" · "}
                     {formatDate(doc.uploadedAt)}
                   </p>
                 </div>
-                <Badge>{TYPE_LABEL[doc.type]}</Badge>
+                <Badge>{t(docTypeKey(doc.type))}</Badge>
               </li>
             ))}
           </ul>

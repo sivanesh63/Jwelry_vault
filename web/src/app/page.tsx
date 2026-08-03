@@ -23,14 +23,16 @@ import {
   formatDate,
   formatMoneyShort,
   formatWeight,
-  relativeDays,
   today,
 } from "@/lib/format";
+import { useRelativeDays, useT } from "@/lib/i18n";
 import { Card, CardHeader, EmptyState, LinkButton } from "@/components/ui";
 import { ItemRow, StatTile } from "@/components/vault";
 
 export default function DashboardPage() {
   const { state, userById } = useVault();
+  const t = useT();
+  const relative = useRelativeDays();
 
   const items = activeItems(state);
   const overdue = overdueItems(state);
@@ -52,10 +54,12 @@ export default function DashboardPage() {
           {state.settings.familyName}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Gold rate {formatMoneyShort(state.settings.goldRatePerGram24k)}/g (24K), updated{" "}
-          {relativeDays(state.settings.goldRateUpdatedOn, today())}.{" "}
+          {t("dashboard.goldRate", {
+            rate: t("unit.perGram", { value: formatMoneyShort(state.settings.goldRatePerGram24k) }),
+            when: relative(state.settings.goldRateUpdatedOn, today()),
+          })}{" "}
           <Link href="/settings/" className="text-gold underline underline-offset-2">
-            Update
+            {t("common.update")}
           </Link>
         </p>
       </div>
@@ -67,15 +71,18 @@ export default function DashboardPage() {
             <AlertTriangle className="mt-0.5 size-5 shrink-0 text-danger" />
             <div className="min-w-0 flex-1">
               <p className="font-medium text-danger">
-                {overdue.length} item{overdue.length > 1 ? "s" : ""} overdue
+                {t("dashboard.overdueTitle", { n: overdue.length })}
               </p>
               <p className="mt-0.5 text-sm text-muted">
                 {overdue
-                  .map((j) => `${j.name} — ${userById(j.currentHolderId)?.displayName ?? j.jeweler ?? "unknown"}`)
+                  .map(
+                    (j) =>
+                      `${j.name} — ${userById(j.currentHolderId)?.displayName ?? j.jeweler ?? t("common.unknown")}`,
+                  )
                   .join(", ")}
               </p>
               <LinkButton href="/movements/return/" size="sm" variant="primary" className="mt-3">
-                Return items
+                {t("dashboard.returnItems")}
               </LinkButton>
             </div>
           </div>
@@ -84,28 +91,28 @@ export default function DashboardPage() {
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
-          label="Total items"
+          label={t("dashboard.totalItems")}
           value={String(items.length)}
-          sub={`${state.jewelry.length - items.length} archived`}
+          sub={t("dashboard.archived", { n: state.jewelry.length - items.length })}
           href="/jewelry/"
           icon={<Gem className="size-4" />}
         />
         <StatTile
-          label="Net gold"
+          label={t("dashboard.netGold")}
           value={formatWeight(totalGold)}
-          sub="excluding stones"
+          sub={t("dashboard.excludingStones")}
           icon={<Coins className="size-4" />}
         />
         <StatTile
-          label="Estimated value"
+          label={t("dashboard.estValue")}
           value={formatMoneyShort(totalValue)}
-          sub="at current rate"
+          sub={t("dashboard.atCurrentRate")}
           icon={<TrendingUp className="size-4" />}
         />
         <StatTile
-          label="Outside locker"
+          label={t("dashboard.outsideLocker")}
           value={String(away.length)}
-          sub={`${inLocker} secured`}
+          sub={t("dashboard.secured", { n: inLocker })}
           tone={away.length > 0 ? "warn" : undefined}
           href="/movements/"
           icon={<Vault className="size-4" />}
@@ -115,25 +122,27 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Out of the locker"
-            description={`${away.length} item${away.length === 1 ? "" : "s"} away from a locker`}
+            title={t("dashboard.outOfLocker")}
+            description={t("dashboard.awayCount", { n: away.length })}
             action={
               <Link href="/movements/" className="text-sm text-gold hover:underline">
-                All
+                {t("common.viewAll")}
               </Link>
             }
           />
           {away.length === 0 ? (
             <EmptyState
-              title="Everything is secured"
-              description="No items are currently outside a locker."
+              title={t("dashboard.allSecured")}
+              description={t("dashboard.allSecuredDesc")}
             />
           ) : (
             <div className="divide-y divide-border">
               {away
                 .slice()
                 .sort((a, b) =>
-                  (a.expectedReturnOn ?? "9999-12-31").localeCompare(b.expectedReturnOn ?? "9999-12-31"),
+                  (a.expectedReturnOn ?? "9999-12-31").localeCompare(
+                    b.expectedReturnOn ?? "9999-12-31",
+                  ),
                 )
                 .map((item) => (
                   <ItemRow key={item.id} item={item} href={`/jewelry/item/?id=${item.id}`} />
@@ -145,15 +154,15 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title="Upcoming events"
+              title={t("dashboard.upcomingEvents")}
               action={
                 <Link href="/events/" className="text-sm text-gold hover:underline">
-                  All
+                  {t("common.viewAll")}
                 </Link>
               }
             />
             {events.length === 0 ? (
-              <EmptyState title="No events in the next 30 days" />
+              <EmptyState title={t("dashboard.noEvents")} />
             ) : (
               <div className="divide-y divide-border">
                 {events.map((event) => {
@@ -172,11 +181,11 @@ export default function DashboardPage() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{event.name}</span>
                         <span className="block truncate text-sm text-muted">
-                          {formatDate(event.startsOn)} · {relativeDays(today(), event.startsOn)}
+                          {formatDate(event.startsOn)} · {relative(today(), event.startsOn)}
                         </span>
                       </span>
                       <span className="shrink-0 text-right text-xs text-muted">
-                        {ready}/{event.jewelryIds.length} ready
+                        {t("dashboard.readyCount", { ready, total: event.jewelryIds.length })}
                       </span>
                     </Link>
                   );
@@ -186,27 +195,27 @@ export default function DashboardPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Needs attention" />
+            <CardHeader title={t("dashboard.needsAttention")} />
             <div className="divide-y divide-border text-sm">
               <AttentionRow
-                label="Due back soon"
+                label={t("dashboard.dueBackSoon")}
                 count={dueSoon.length}
                 href="/movements/return/"
                 warn={dueSoon.length > 0}
               />
               <AttentionRow
-                label="Locker visits due"
+                label={t("dashboard.lockerVisitsDue")}
                 count={lockerVisits.length}
                 href="/lockers/"
                 warn={lockerVisits.length > 0}
               />
               <AttentionRow
-                label="Items in transit"
+                label={t("dashboard.inTransitCount")}
                 count={items.filter((j) => j.status === "in_transit").length}
                 href="/movements/transfer/"
               />
               <AttentionRow
-                label="At the jeweler"
+                label={t("dashboard.atJewelerCount")}
                 count={items.filter((j) => j.status === "at_jeweler").length}
                 href="/movements/"
               />
@@ -230,9 +239,9 @@ function AttentionRow({
   warn?: boolean;
 }) {
   return (
-    <Link href={href} className="flex items-center justify-between px-4 py-3 hover:bg-surface-2">
-      <span>{label}</span>
-      <span className="flex items-center gap-2">
+    <Link href={href} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-surface-2">
+      <span className="min-w-0">{label}</span>
+      <span className="flex shrink-0 items-center gap-2">
         <span className={warn && count > 0 ? "font-semibold text-warn" : "text-muted"}>{count}</span>
         <ArrowRight className="size-4 text-muted" />
       </span>

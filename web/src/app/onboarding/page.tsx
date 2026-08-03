@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Check, Fingerprint, Share, Vault } from "lucide-react";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { Button, Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -13,29 +14,30 @@ import { cn } from "@/lib/utils";
  * to an installed PWA, so skipping it silently disables every reminder for that
  * person. Making it an explicit step is the cheapest fix.
  */
-const STEPS = [
+const STEPS: { icon: typeof Bell; title: MessageKey; body: MessageKey; cta: MessageKey }[] = [
   {
     icon: Fingerprint,
-    title: "Secure this device",
-    body: "Require Face ID, Touch ID, or your device PIN each time the vault is opened.",
-    cta: "Enable device lock",
+    title: "onboarding.step1Title",
+    body: "onboarding.step1Body",
+    cta: "onboarding.step1Cta",
   },
   {
     icon: Share,
-    title: "Add to your Home Screen",
-    body: "On iPhone: tap Share, then “Add to Home Screen.” This is required for notifications to work at all on iOS.",
-    cta: "I've added it",
+    title: "onboarding.step2Title",
+    body: "onboarding.step2Body",
+    cta: "onboarding.step2Cta",
   },
   {
     icon: Bell,
-    title: "Turn on reminders",
-    body: "Get notified when an item is due back, when it becomes overdue, and before a family event.",
-    cta: "Allow notifications",
+    title: "onboarding.step3Title",
+    body: "onboarding.step3Body",
+    cta: "onboarding.step3Cta",
   },
-] as const;
+];
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const t = useT();
   const [done, setDone] = useState<number[]>([]);
 
   const allDone = done.length === STEPS.length;
@@ -46,8 +48,8 @@ export default function OnboardingPage() {
         <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-gold text-white">
           <Vault className="size-7" />
         </span>
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome</h1>
-        <p className="mt-1 text-sm text-muted">Three quick steps and you&apos;re set up.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("onboarding.welcome")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("onboarding.subtitle")}</p>
       </div>
 
       <div className="space-y-3">
@@ -66,8 +68,8 @@ export default function OnboardingPage() {
                   {complete ? <Check className="size-4" /> : <Icon className="size-4" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">{step.title}</p>
-                  <p className="mt-0.5 text-sm text-muted">{step.body}</p>
+                  <p className="font-medium">{t(step.title)}</p>
+                  <p className="mt-0.5 text-sm text-muted">{t(step.body)}</p>
                   {!complete ? (
                     <Button
                       size="sm"
@@ -75,7 +77,7 @@ export default function OnboardingPage() {
                       className="mt-3"
                       onClick={() => setDone((d) => [...d, i])}
                     >
-                      {step.cta}
+                      {t(step.cta)}
                     </Button>
                   ) : null}
                 </div>
@@ -90,7 +92,7 @@ export default function OnboardingPage() {
         className="mt-6 w-full"
         onClick={() => router.push("/")}
       >
-        {allDone ? "Open the vault" : "Skip for now"}
+        {allDone ? t("onboarding.openVault") : t("onboarding.skip")}
       </Button>
     </>
   );

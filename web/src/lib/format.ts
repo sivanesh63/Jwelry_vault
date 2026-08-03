@@ -11,26 +11,38 @@ import type { ItemStatus, JewelryItem, Settings } from "./types";
  */
 export const DEMO_TODAY = "2026-08-03";
 
+/**
+ * Formatting configuration, set once by LanguageProvider when the language
+ * changes. Held at module scope rather than passed through every call site:
+ * changing the language re-renders the whole tree, so formatters always read the
+ * current value during that render.
+ */
+let config = { locale: "en-IN", gram: "g" };
+
+export function configureFormatting(next: Partial<typeof config>): void {
+  config = { ...config, ...next };
+}
+
 export function today(): string {
   return DEMO_TODAY;
 }
 
 /** Whole days from `from` to `to`; negative when `to` is in the past. */
 export function daysBetween(from: string, to: string): number {
-  const a = Date.parse(`${from}T00:00:00Z`);
-  const b = Date.parse(`${to}T00:00:00Z`);
+  const a = Date.parse(`${from.slice(0, 10)}T00:00:00Z`);
+  const b = Date.parse(`${to.slice(0, 10)}T00:00:00Z`);
   return Math.round((b - a) / 86_400_000);
 }
 
 export function addDays(date: string, days: number): string {
-  const t = Date.parse(`${date}T00:00:00Z`) + days * 86_400_000;
+  const t = Date.parse(`${date.slice(0, 10)}T00:00:00Z`) + days * 86_400_000;
   return new Date(t).toISOString().slice(0, 10);
 }
 
 export function formatDate(iso?: string): string {
   if (!iso) return "—";
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  return d.toLocaleDateString("en-IN", {
+  return d.toLocaleDateString(config.locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -41,7 +53,7 @@ export function formatDate(iso?: string): string {
 export function formatDateTime(iso?: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleString("en-IN", {
+  return d.toLocaleString(config.locale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -51,23 +63,14 @@ export function formatDateTime(iso?: string): string {
   });
 }
 
-/** "3 days ago", "in 2 days", "today". */
-export function relativeDays(from: string, to: string): string {
-  const d = daysBetween(from, to);
-  if (d === 0) return "today";
-  if (d === 1) return "tomorrow";
-  if (d === -1) return "yesterday";
-  return d > 0 ? `in ${d} days` : `${Math.abs(d)} days ago`;
-}
-
 export function formatWeight(grams?: number): string {
   if (grams == null) return "—";
-  return `${grams.toFixed(1)} g`;
+  return `${grams.toFixed(1)} ${config.gram}`;
 }
 
 export function formatMoney(amount?: number, currency = "INR"): string {
   if (amount == null) return "—";
-  return new Intl.NumberFormat("en-IN", {
+  return new Intl.NumberFormat(config.locale, {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
@@ -91,14 +94,6 @@ export function formatMoneyShort(amount: number, currency = "INR"): string {
 export function estimateValue(item: JewelryItem, settings: Settings): number {
   return item.netGoldWeight * (item.purity / 24) * settings.goldRatePerGram24k;
 }
-
-export const STATUS_LABEL: Record<ItemStatus, string> = {
-  in_locker: "In locker",
-  with_member: "With member",
-  in_transit: "In transit",
-  at_jeweler: "At jeweler",
-  lost: "Lost",
-};
 
 /** Tailwind classes per status, used by the Badge component. */
 export const STATUS_TONE: Record<ItemStatus, string> = {

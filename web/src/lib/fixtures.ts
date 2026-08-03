@@ -86,21 +86,24 @@ export const seedState: VaultState = {
     { id: "d8", familyId: FAMILY, jewelryId: "j12", type: "hallmark", fileName: "hallmark-HM-6612-WR.jpg", uploadedAt: ts(-155) },
   ],
 
+  // `actionKey` is a message-catalog key, not display text — see AuditEntry.
   audit: [
-    { id: "a1", familyId: FAMILY, actorId: "u1", action: "Transferred", entityType: "jewelry", entityId: "j13", detail: "Jhumka Set — ICICI Locker → SBI Locker", at: ts(-1, "09:15") },
-    { id: "a2", familyId: FAMILY, actorId: "u2", action: "Sent for service", entityType: "jewelry", entityId: "j8", detail: "Pearl & Gold Choker → Prince Jewellery", at: ts(-7, "16:40") },
-    { id: "a3", familyId: FAMILY, actorId: "u2", action: "Took out", entityType: "jewelry", entityId: "j4", detail: "Gold Bangles (Pair) → Meena", at: ts(-5, "11:05") },
-    { id: "a4", familyId: FAMILY, actorId: "u3", action: "Took out", entityType: "jewelry", entityId: "j10", detail: "Thin Daily Chain → Priya", at: ts(-9, "08:20") },
-    { id: "a5", familyId: FAMILY, actorId: "u1", action: "Updated gold rate", entityType: "settings", entityId: "settings", detail: "₹7,380 → ₹7,420 per gram (24K)", at: ts(-2, "07:55") },
-    { id: "a6", familyId: FAMILY, actorId: "u1", action: "Added item", entityType: "jewelry", entityId: "j14", detail: "Mango Design Necklace", at: ts(-120, "18:30") },
+    { id: "a1", familyId: FAMILY, actorId: "u1", actionKey: "audit.startedTransfer", entityType: "jewelry", entityId: "j13", detail: "Jhumka Set · ICICI Locker → SBI Locker", at: ts(-1, "09:15") },
+    { id: "a2", familyId: FAMILY, actorId: "u2", actionKey: "audit.sentForService", entityType: "jewelry", entityId: "j8", detail: "Pearl & Gold Choker → Prince Jewellery", at: ts(-7, "16:40") },
+    { id: "a3", familyId: FAMILY, actorId: "u2", actionKey: "audit.tookOut", entityType: "jewelry", entityId: "j4", detail: "Gold Bangles (Pair) → Meena", at: ts(-5, "11:05") },
+    { id: "a4", familyId: FAMILY, actorId: "u3", actionKey: "audit.tookOut", entityType: "jewelry", entityId: "j10", detail: "Thin Daily Chain → Priya", at: ts(-9, "08:20") },
+    { id: "a5", familyId: FAMILY, actorId: "u1", actionKey: "audit.updatedGoldRate", entityType: "settings", entityId: "settings", detail: "₹7,380 → ₹7,420", at: ts(-2, "07:55") },
+    { id: "a6", familyId: FAMILY, actorId: "u1", actionKey: "audit.addedItem", entityType: "jewelry", entityId: "j14", detail: "Mango Design Necklace", at: ts(-120, "18:30") },
   ],
 
+  // Text is not stored: `kind` picks a template and `params` fills it, so these
+  // render in whichever language the reader has selected.
   notifications: [
-    { id: "n1", familyId: FAMILY, kind: "overdue", title: "Diamond Drop Earrings overdue", body: "With Priya, due 6 days ago.", jewelryId: "j3", createdAt: ts(0, "08:00") },
-    { id: "n2", familyId: FAMILY, kind: "overdue", title: "Thin Daily Chain overdue", body: "With Priya, due yesterday.", jewelryId: "j10", createdAt: ts(0, "08:00") },
-    { id: "n3", familyId: FAMILY, kind: "event_upcoming", title: "Ramya's Wedding starts tomorrow", body: "3 items earmarked. 2 still in the locker.", eventId: "e1", createdAt: ts(0, "08:00") },
-    { id: "n4", familyId: FAMILY, kind: "due_soon", title: "Gold Bangles due in 2 days", body: "With Meena, for Ramya's Wedding.", jewelryId: "j4", createdAt: ts(0, "08:00") },
-    { id: "n5", familyId: FAMILY, kind: "locker_visit", title: "SBI Locker visit overdue", body: "Last verified 96 days ago; interval is 90 days.", createdAt: ts(-1, "08:00"), readAt: ts(-1, "20:10") },
-    { id: "n6", familyId: FAMILY, kind: "document_expiring", title: "Insurance expiring in 21 days", body: "Antique Lakshmi Kasumalai — policy-2026.pdf", jewelryId: "j2", createdAt: ts(-2, "08:00"), readAt: ts(-2, "09:00") },
+    { id: "n1", familyId: FAMILY, kind: "overdue", params: { item: "Diamond Drop Earrings", holder: "Priya", days: 6 }, jewelryId: "j3", createdAt: ts(0, "08:00") },
+    { id: "n2", familyId: FAMILY, kind: "overdue", params: { item: "Thin Daily Chain", holder: "Priya", days: 1 }, jewelryId: "j10", createdAt: ts(0, "08:00") },
+    { id: "n3", familyId: FAMILY, kind: "event_upcoming", params: { event: "Ramya's Wedding", days: 1, total: 3, pending: 2 }, eventId: "e1", createdAt: ts(0, "08:00") },
+    { id: "n4", familyId: FAMILY, kind: "due_soon", params: { item: "Gold Bangles (Pair)", holder: "Meena", days: 2 }, jewelryId: "j4", createdAt: ts(0, "08:00") },
+    { id: "n5", familyId: FAMILY, kind: "locker_visit", params: { locker: "SBI Locker", days: 96, interval: 90 }, createdAt: ts(-1, "08:00"), readAt: ts(-1, "20:10") },
+    { id: "n6", familyId: FAMILY, kind: "document_expiring", params: { docType: "Insurance", days: 21, item: "Antique Lakshmi Kasumalai", file: "policy-2026.pdf" }, jewelryId: "j2", createdAt: ts(-2, "08:00"), readAt: ts(-2, "09:00") },
   ],
 };

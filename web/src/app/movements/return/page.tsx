@@ -6,13 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Info } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
 import { daysBetween, formatDate, today } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, EmptyState, Field, Select } from "@/components/ui";
 import { ItemRow } from "@/components/vault";
 import { cn } from "@/lib/utils";
 
 export default function ReturnPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <ReturnItems />
     </Suspense>
   );
@@ -22,6 +24,7 @@ function ReturnItems() {
   const router = useRouter();
   const preselect = useSearchParams().get("id");
   const { state, userById, returnItems } = useVault();
+  const t = useT();
 
   const out = activeItems(state).filter((j) => j.status === "with_member");
   const [selected, setSelected] = useState<string[]>(
@@ -30,7 +33,8 @@ function ReturnItems() {
   const [lockerId, setLockerId] = useState(state.lockers[0]?.id ?? "");
   const [holderFilter, setHolderFilter] = useState<string>("all");
 
-  const visible = holderFilter === "all" ? out : out.filter((i) => i.currentHolderId === holderFilter);
+  const visible =
+    holderFilter === "all" ? out : out.filter((i) => i.currentHolderId === holderFilter);
   const holders = Array.from(new Set(out.map((i) => i.currentHolderId).filter(Boolean) as string[]));
 
   function toggle(id: string) {
@@ -49,26 +53,26 @@ function ReturnItems() {
         className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-text"
       >
         <ChevronLeft className="size-4" />
-        Movements
+        {t("movements.title")}
       </Link>
-      <h1 className="mb-1 text-xl font-semibold tracking-tight sm:text-2xl">Return items</h1>
-      <p className="mb-5 text-sm text-muted">
-        Select only what is physically coming back — returning 3 of 5 items is normal and leaves the
-        rest open.
-      </p>
+      <h1 className="mb-1 text-xl font-semibold tracking-tight sm:text-2xl">{t("return.title")}</h1>
+      <p className="mb-5 text-sm text-muted">{t("return.subtitle")}</p>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Currently out"
-            description={`${selected.length} of ${visible.length} selected`}
+            title={t("return.currentlyOut")}
+            description={t("takeout.selectedOf", {
+              selected: selected.length,
+              total: visible.length,
+            })}
             action={
               <button
                 type="button"
                 onClick={() => setSelected(visible.map((i) => i.id))}
                 className="text-sm text-gold hover:underline"
               >
-                Select all
+                {t("common.selectAll")}
               </button>
             }
           />
@@ -76,18 +80,21 @@ function ReturnItems() {
           {holders.length > 1 ? (
             <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-border px-4 py-2.5">
               <FilterChip active={holderFilter === "all"} onClick={() => setHolderFilter("all")}>
-                Everyone
+                {t("common.everyone")}
               </FilterChip>
               {holders.map((h) => (
                 <FilterChip key={h} active={holderFilter === h} onClick={() => setHolderFilter(h)}>
-                  {userById(h)?.displayName ?? "Unknown"}
+                  {userById(h)?.displayName ?? t("common.unknown")}
                 </FilterChip>
               ))}
             </div>
           ) : null}
 
           {visible.length === 0 ? (
-            <EmptyState title="Nothing to return" description="No items are with a family member." />
+            <EmptyState
+              title={t("return.nothingToReturn")}
+              description={t("return.nothingToReturnDesc")}
+            />
           ) : (
             <div className="max-h-[28rem] divide-y divide-border overflow-y-auto">
               {visible.map((item) => {
@@ -104,7 +111,9 @@ function ReturnItems() {
                     right={
                       <div className="hidden shrink-0 text-right sm:block">
                         <p className={cn("text-xs", overdueBy > 0 ? "text-danger" : "text-muted")}>
-                          {item.expectedReturnOn ? `Due ${formatDate(item.expectedReturnOn)}` : "—"}
+                          {item.expectedReturnOn
+                            ? t("movements.due", { date: formatDate(item.expectedReturnOn) })
+                            : "—"}
                         </p>
                         <p className="text-xs text-muted">
                           {userById(item.currentHolderId)?.displayName}
@@ -120,9 +129,9 @@ function ReturnItems() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Where is it going" />
+            <CardHeader title={t("return.destination")} />
             <div className="p-4">
-              <Field label="Locker" required>
+              <Field label={t("return.locker")} required>
                 <Select value={lockerId} onChange={(e) => setLockerId(e.target.value)}>
                   {state.lockers.map((l) => (
                     <option key={l.id} value={l.id}>
@@ -138,23 +147,16 @@ function ReturnItems() {
           <Card className="bg-surface-2">
             <div className="flex items-start gap-3 p-4">
               <Info className="mt-0.5 size-5 shrink-0 text-muted" />
-              <p className="text-sm text-muted">
-                Returning also records a visit to the chosen locker, which resets its verification
-                reminder.
-              </p>
+              <p className="text-sm text-muted">{t("return.visitNote")}</p>
             </div>
           </Card>
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => router.back()}>
-              Cancel
+              {t("common.cancel")}
             </Button>
-            <Button
-              variant="primary"
-              disabled={selected.length === 0 || !lockerId}
-              onClick={submit}
-            >
-              Return {selected.length > 0 ? `${selected.length} item${selected.length > 1 ? "s" : ""}` : ""}
+            <Button variant="primary" disabled={selected.length === 0 || !lockerId} onClick={submit}>
+              {t("return.action", { n: selected.length })}
             </Button>
           </div>
         </div>

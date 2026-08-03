@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, ChevronLeft, PackageCheck, Truck } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
+import { useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, EmptyState, Field, Input, Select } from "@/components/ui";
 import { ItemRow } from "@/components/vault";
 
 export default function TransferPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <Transfer />
     </Suspense>
   );
@@ -20,6 +22,7 @@ function Transfer() {
   const router = useRouter();
   const preselect = useSearchParams().get("id");
   const { state, lockerById, startTransfer, confirmArrival } = useVault();
+  const t = useT();
 
   const inLocker = activeItems(state).filter((j) => j.status === "in_locker");
   const inTransit = activeItems(state).filter((j) => j.status === "in_transit");
@@ -31,7 +34,8 @@ function Transfer() {
   const [toLocker, setToLocker] = useState(state.lockers[1]?.id ?? state.lockers[0]?.id ?? "");
   const [reason, setReason] = useState("");
 
-  const visible = fromLocker === "all" ? inLocker : inLocker.filter((i) => i.currentLockerId === fromLocker);
+  const visible =
+    fromLocker === "all" ? inLocker : inLocker.filter((i) => i.currentLockerId === fromLocker);
   // An item cannot be transferred to the locker it already sits in.
   const selectable = visible.filter((i) => i.currentLockerId !== toLocker);
 
@@ -52,20 +56,17 @@ function Transfer() {
         className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-text"
       >
         <ChevronLeft className="size-4" />
-        Movements
+        {t("movements.title")}
       </Link>
       <h1 className="mb-1 text-xl font-semibold tracking-tight sm:text-2xl">
-        Transfer between lockers
+        {t("transfer.title")}
       </h1>
-      <p className="mb-5 text-sm text-muted">
-        Items move through an <strong className="text-text">in transit</strong> state so they are
-        never invisible mid-move. Confirm arrival once they are physically placed.
-      </p>
+      <p className="mb-5 text-sm text-muted">{t("transfer.subtitle")}</p>
 
       {inTransit.length > 0 ? (
         <Card className="mb-4 border-info/30 bg-info/5">
           <CardHeader
-            title={`${inTransit.length} item${inTransit.length > 1 ? "s" : ""} in transit`}
+            title={t("transfer.inTransitCount", { n: inTransit.length })}
             action={
               <Button
                 size="sm"
@@ -73,7 +74,7 @@ function Transfer() {
                 onClick={() => confirmArrival(inTransit.map((i) => i.id))}
               >
                 <PackageCheck className="size-4" />
-                Confirm all
+                {t("transfer.confirmAll")}
               </Button>
             }
           />
@@ -85,7 +86,9 @@ function Transfer() {
                 right={
                   <div className="shrink-0">
                     <Button size="sm" onClick={() => confirmArrival([item.id])}>
-                      Arrived at {lockerById(item.currentLockerId)?.name ?? "locker"}
+                      {t("transfer.arrivedAt", {
+                        locker: lockerById(item.currentLockerId)?.name ?? t("return.locker"),
+                      })}
                     </Button>
                   </div>
                 }
@@ -98,23 +101,23 @@ function Transfer() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Select items"
-            description={`${selected.length} selected`}
+            title={t("transfer.selectItems")}
+            description={t("transfer.selectedCount", { n: selected.length })}
           />
           <div className="border-b border-border p-3">
             <Select value={fromLocker} onChange={(e) => setFromLocker(e.target.value)}>
-              <option value="all">From any locker</option>
+              <option value="all">{t("transfer.fromAny")}</option>
               {state.lockers.map((l) => (
                 <option key={l.id} value={l.id}>
-                  From {l.name}
+                  {t("transfer.fromLocker", { locker: l.name })}
                 </option>
               ))}
             </Select>
           </div>
           {selectable.length === 0 ? (
             <EmptyState
-              title="No items available"
-              description="Pick a different source locker, or a different destination."
+              title={t("transfer.noneAvailable")}
+              description={t("transfer.noneAvailableDesc")}
             />
           ) : (
             <div className="max-h-[26rem] divide-y divide-border overflow-y-auto">
@@ -133,9 +136,9 @@ function Transfer() {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Destination" />
+            <CardHeader title={t("transfer.destination")} />
             <div className="space-y-3 p-4">
-              <Field label="Move to" required>
+              <Field label={t("transfer.moveTo")} required>
                 <Select value={toLocker} onChange={(e) => setToLocker(e.target.value)}>
                   {state.lockers.map((l) => (
                     <option key={l.id} value={l.id}>
@@ -145,11 +148,11 @@ function Transfer() {
                   ))}
                 </Select>
               </Field>
-              <Field label="Reason">
+              <Field label={t("common.reason")}>
                 <Input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Consolidating the bridal set…"
+                  placeholder={t("transfer.reasonPlaceholder")}
                 />
               </Field>
             </div>
@@ -160,7 +163,9 @@ function Transfer() {
               <div className="flex items-center gap-3 p-4 text-sm">
                 <Truck className="size-5 shrink-0 text-muted" />
                 <span className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-medium">{selected.length} item(s)</span>
+                  <span className="font-medium">
+                    {t("event.attachedCount", { n: selected.length })}
+                  </span>
                   <ArrowRight className="size-3.5 text-muted" />
                   <span className="font-medium">{lockerById(toLocker)?.name}</span>
                 </span>
@@ -170,10 +175,10 @@ function Transfer() {
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => router.back()}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="primary" disabled={selected.length === 0 || !toLocker} onClick={submit}>
-              Start transfer
+              {t("transfer.start")}
             </Button>
           </div>
         </div>

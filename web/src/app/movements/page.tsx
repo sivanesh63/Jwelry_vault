@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeftRight, PackageCheck, Undo2, Upload } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { movementTypeKey, useT } from "@/lib/i18n";
 import { Badge, Card, CardHeader, EmptyState, LinkButton, PageHeader } from "@/components/ui";
 import { ItemRow } from "@/components/vault";
 import { cn } from "@/lib/utils";
@@ -13,49 +14,45 @@ type Tab = "out" | "history";
 
 export default function MovementsPage() {
   const { state, userById, itemById } = useVault();
+  const t = useT();
   const [tab, setTab] = useState<Tab>("out");
 
   const items = activeItems(state);
   const away = items.filter(
     (j) => j.status === "with_member" || j.status === "at_jeweler" || j.status === "in_transit",
   );
-  const history = state.movements
-    .slice()
-    .sort((a, b) => b.takenAt.localeCompare(a.takenAt));
+  const history = state.movements.slice().sort((a, b) => b.takenAt.localeCompare(a.takenAt));
 
   return (
     <>
-      <PageHeader
-        title="Movements"
-        subtitle="Every movement is permanent — rows are closed, never edited or deleted."
-      />
+      <PageHeader title={t("movements.title")} subtitle={t("movements.subtitle")} />
 
       <div className="mb-4 grid grid-cols-3 gap-2">
-        <LinkButton href="/movements/takeout/" variant="primary" className="flex-col !h-auto py-3">
+        <LinkButton href="/movements/takeout/" variant="primary" className="!h-auto flex-col py-3">
           <Upload className="size-4" />
-          <span className="text-xs">Take out</span>
+          <span className="text-center text-xs leading-tight">{t("item.takeOut")}</span>
         </LinkButton>
-        <LinkButton href="/movements/return/" className="flex-col !h-auto py-3">
+        <LinkButton href="/movements/return/" className="!h-auto flex-col py-3">
           <Undo2 className="size-4" />
-          <span className="text-xs">Return</span>
+          <span className="text-center text-xs leading-tight">{t("item.return")}</span>
         </LinkButton>
-        <LinkButton href="/movements/transfer/" className="flex-col !h-auto py-3">
+        <LinkButton href="/movements/transfer/" className="!h-auto flex-col py-3">
           <ArrowLeftRight className="size-4" />
-          <span className="text-xs">Transfer</span>
+          <span className="text-center text-xs leading-tight">{t("item.transfer")}</span>
         </LinkButton>
       </div>
 
       <div className="mb-3 flex gap-1 rounded-lg border border-border bg-surface p-1">
         {(
           [
-            ["out", `Currently out (${away.length})`],
-            ["history", `History (${history.length})`],
+            ["out", t("movements.currentlyOut", { n: away.length })],
+            ["history", t("movements.history", { n: history.length })],
           ] as const
         ).map(([key, label]) => (
           <button
             key={key}
             type="button"
-            onClick={() => setTab(key)}
+            onClick={() => setTab(key as Tab)}
             className={cn(
               "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
               tab === key ? "bg-gold-soft text-gold-deep" : "text-muted hover:text-text",
@@ -70,8 +67,8 @@ export default function MovementsPage() {
         <Card>
           {away.length === 0 ? (
             <EmptyState
-              title="Nothing is out"
-              description="Every item is accounted for in a locker."
+              title={t("movements.nothingOut")}
+              description={t("movements.nothingOutDesc")}
             />
           ) : (
             <div className="divide-y divide-border">
@@ -83,12 +80,14 @@ export default function MovementsPage() {
                   right={
                     <div className="shrink-0 text-right">
                       <p className="text-xs text-muted">
-                        {item.expectedReturnOn ? `Due ${formatDate(item.expectedReturnOn)}` : "No due date"}
+                        {item.expectedReturnOn
+                          ? t("movements.due", { date: formatDate(item.expectedReturnOn) })
+                          : t("movements.noDueDate")}
                       </p>
                       {item.status === "in_transit" ? (
                         <Badge tone="bg-info/10 text-info border-info/25">
                           <PackageCheck className="size-3" />
-                          Confirm arrival
+                          {t("movements.confirmArrival")}
                         </Badge>
                       ) : null}
                     </div>
@@ -100,7 +99,7 @@ export default function MovementsPage() {
         </Card>
       ) : (
         <Card>
-          <CardHeader title="All movements" />
+          <CardHeader title={t("movements.allMovements")} />
           <ol className="divide-y divide-border">
             {history.map((m) => {
               const item = itemById(m.jewelryId);
@@ -111,15 +110,15 @@ export default function MovementsPage() {
                       href={`/jewelry/item/?id=${m.jewelryId}`}
                       className="truncate font-medium hover:underline"
                     >
-                      {item?.name ?? "Archived item"}
+                      {item?.name ?? t("movements.archivedItem")}
                     </Link>
-                    <Badge>{m.returnedAt ? "Closed" : "Open"}</Badge>
+                    <Badge>{m.returnedAt ? t("common.closed") : t("common.open")}</Badge>
                   </div>
-                  <p className="mt-0.5 text-sm capitalize text-muted">
-                    {m.type} · {m.fromLocation} → {m.toLocation}
+                  <p className="mt-0.5 text-sm text-muted">
+                    {t(movementTypeKey(m.type))} · {m.fromLocation} → {m.toLocation}
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {formatDateTime(m.takenAt)} by {userById(m.actorId)?.displayName ?? "—"}
+                    {formatDateTime(m.takenAt)} · {userById(m.actorId)?.displayName ?? "—"}
                     {m.reason ? ` · ${m.reason}` : ""}
                   </p>
                 </li>

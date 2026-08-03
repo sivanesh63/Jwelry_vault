@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useVault } from "@/lib/store";
 import {
-  STATUS_LABEL,
   addDays,
   estimateValue,
   formatDate,
@@ -26,6 +25,14 @@ import {
   formatWeight,
   today,
 } from "@/lib/format";
+import {
+  categoryKey,
+  docTypeKey,
+  movementTypeKey,
+  statusKey,
+  usePurity,
+  useT,
+} from "@/lib/i18n";
 import {
   Badge,
   Button,
@@ -37,11 +44,12 @@ import {
   LinkButton,
   Modal,
 } from "@/components/ui";
-import { CATEGORY_LABEL, DetailRow, DueBadge, PhotoTile, StatusBadge } from "@/components/vault";
+import { DetailRow, DueBadge, PhotoTile, StatusBadge, useLocationLabel } from "@/components/vault";
 
 export default function JewelryDetailPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <JewelryDetail />
     </Suspense>
   );
@@ -50,12 +58,14 @@ export default function JewelryDetailPage() {
 function JewelryDetail() {
   const router = useRouter();
   const id = useSearchParams().get("id") ?? undefined;
+  const t = useT();
+  const purity = usePurity();
+  const locationLabel = useLocationLabel();
   const {
     state,
     itemById,
     userById,
     lockerById,
-    locationOf,
     movementsOf,
     documentsOf,
     openMovementOf,
@@ -76,11 +86,11 @@ function JewelryDetail() {
   if (!item) {
     return (
       <EmptyState
-        title="Item not found"
-        description="It may have been archived, or the link is out of date."
+        title={t("item.notFound")}
+        description={t("item.notFoundDesc")}
         action={
           <LinkButton href="/jewelry/" variant="primary" size="sm">
-            Back to jewelry
+            {t("item.backToJewelry")}
           </LinkButton>
         }
       />
@@ -101,7 +111,7 @@ function JewelryDetail() {
         className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-text"
       >
         <ChevronLeft className="size-4" />
-        Jewelry
+        {t("nav.jewelry")}
       </Link>
 
       <div className="mb-4 flex flex-col gap-4 sm:flex-row">
@@ -113,26 +123,27 @@ function JewelryDetail() {
             <DueBadge item={item} />
           </div>
           <p className="mt-1 text-sm text-muted">
-            {CATEGORY_LABEL[item.category]} · {item.purity}K · {formatWeight(item.grossWeight)}
+            {t(categoryKey(item.category))} · {purity(item.purity)} ·{" "}
+            {formatWeight(item.grossWeight)}
           </p>
-          <p className="mt-3 text-2xl font-semibold tabular">{formatMoney(value)}</p>
+          <p className="tabular mt-3 text-2xl font-semibold">{formatMoney(value)}</p>
           <p className="text-xs text-muted">
-            estimated from {formatWeight(item.netGoldWeight)} net gold at current rate
+            {t("item.estimatedFrom", { weight: formatWeight(item.netGoldWeight) })}
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
             {item.status === "in_locker" ? (
               <>
                 <LinkButton href={`/movements/takeout/?id=${item.id}`} variant="primary" size="sm">
-                  Take out
+                  {t("item.takeOut")}
                 </LinkButton>
                 <LinkButton href={`/movements/transfer/?id=${item.id}`} size="sm">
                   <ArrowLeftRight className="size-4" />
-                  Transfer
+                  {t("item.transfer")}
                 </LinkButton>
                 <Button size="sm" onClick={() => setServiceOpen(true)}>
                   <Hammer className="size-4" />
-                  Send for service
+                  {t("item.sendForService")}
                 </Button>
               </>
             ) : null}
@@ -141,10 +152,10 @@ function JewelryDetail() {
               <>
                 <LinkButton href={`/movements/return/?id=${item.id}`} variant="primary" size="sm">
                   <Undo2 className="size-4" />
-                  Return
+                  {t("item.return")}
                 </LinkButton>
                 <Button size="sm" onClick={() => setExtendOpen(true)}>
-                  Extend due date
+                  {t("item.extendDue")}
                 </Button>
               </>
             ) : null}
@@ -152,20 +163,22 @@ function JewelryDetail() {
             {item.status === "in_transit" ? (
               <Button size="sm" variant="primary" onClick={() => confirmArrival([item.id])}>
                 <PackageCheck className="size-4" />
-                Confirm arrival at {lockerById(item.currentLockerId)?.name ?? "locker"}
+                {t("item.confirmArrival", {
+                  locker: lockerById(item.currentLockerId)?.name ?? t("return.locker"),
+                })}
               </Button>
             ) : null}
 
             {item.status === "at_jeweler" ? (
               <Button size="sm" variant="primary" onClick={() => setCollectOpen(true)}>
                 <PackageCheck className="size-4" />
-                Collect from jeweler
+                {t("item.collectFromJeweler")}
               </Button>
             ) : null}
 
             <LinkButton href={`/jewelry/edit/?id=${item.id}`} size="sm">
               <Pencil className="size-4" />
-              Edit
+              {t("common.edit")}
             </LinkButton>
           </div>
         </div>
@@ -174,38 +187,41 @@ function JewelryDetail() {
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <Card>
-            <CardHeader title="Current position" />
+            <CardHeader title={t("item.currentPosition")} />
             <div className="px-4 py-1">
-              <DetailRow label="Status" value={STATUS_LABEL[item.status]} />
-              <DetailRow label="Location" value={locationOf(item)} />
-              <DetailRow label="Owner" value={owner?.displayName ?? "—"} />
-              {holder ? <DetailRow label="Held by" value={holder.displayName} /> : null}
+              <DetailRow label={t("common.status")} value={t(statusKey(item.status))} />
+              <DetailRow label={t("common.location")} value={locationLabel(item)} />
+              <DetailRow label={t("common.owner")} value={owner?.displayName ?? t("common.none")} />
+              {holder ? <DetailRow label={t("item.heldBy")} value={holder.displayName} /> : null}
               {item.expectedReturnOn ? (
-                <DetailRow label="Expected back" value={formatDate(item.expectedReturnOn)} />
+                <DetailRow
+                  label={t("item.expectedBack")}
+                  value={formatDate(item.expectedReturnOn)}
+                />
               ) : null}
               {openMovement?.reason ? (
-                <DetailRow label="Reason" value={openMovement.reason} />
+                <DetailRow label={t("common.reason")} value={openMovement.reason} />
               ) : null}
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Specification" />
+            <CardHeader title={t("item.specification")} />
             <div className="px-4 py-1">
-              <DetailRow label="Gross weight" value={formatWeight(item.grossWeight)} />
-              <DetailRow label="Net gold weight" value={formatWeight(item.netGoldWeight)} />
-              <DetailRow label="Stone weight" value={formatWeight(item.stoneWeight)} />
-              <DetailRow label="Purity" value={`${item.purity}K`} />
-              <DetailRow label="Hallmark" value={item.hallmarkNo ?? "—"} />
-              <DetailRow label="Jeweler" value={item.jeweler ?? "—"} />
-              <DetailRow label="Purchased" value={formatDate(item.purchaseDate)} />
-              <DetailRow label="Purchase price" value={formatMoney(item.purchasePrice)} />
+              <DetailRow label={t("item.grossWeight")} value={formatWeight(item.grossWeight)} />
+              <DetailRow label={t("item.netGoldWeight")} value={formatWeight(item.netGoldWeight)} />
+              <DetailRow label={t("item.stoneWeight")} value={formatWeight(item.stoneWeight)} />
+              <DetailRow label={t("item.purity")} value={purity(item.purity)} />
+              <DetailRow label={t("item.hallmark")} value={item.hallmarkNo ?? t("common.none")} />
+              <DetailRow label={t("item.jeweler")} value={item.jeweler ?? t("common.none")} />
+              <DetailRow label={t("item.purchased")} value={formatDate(item.purchaseDate)} />
+              <DetailRow label={t("item.purchasePrice")} value={formatMoney(item.purchasePrice)} />
             </div>
           </Card>
 
           {item.notes ? (
             <Card>
-              <CardHeader title="Notes" />
+              <CardHeader title={t("item.notes")} />
               <p className="px-4 py-3 text-sm">{item.notes}</p>
             </Card>
           ) : null}
@@ -214,20 +230,17 @@ function JewelryDetail() {
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title="Documents"
-              description={`${documents.length} on file`}
+              title={t("item.documents")}
+              description={t("item.documentsCount", { n: documents.length })}
               action={
                 <Button size="sm" variant="ghost">
                   <Upload className="size-4" />
-                  Upload
+                  {t("common.upload")}
                 </Button>
               }
             />
             {documents.length === 0 ? (
-              <EmptyState
-                title="No documents yet"
-                description="Invoice, hallmark certificate, insurance and warranty go here."
-              />
+              <EmptyState title={t("item.noDocuments")} description={t("item.noDocumentsDesc")} />
             ) : (
               <ul className="divide-y divide-border">
                 {documents.map((doc) => (
@@ -235,9 +248,11 @@ function JewelryDetail() {
                     <FileText className="size-4 shrink-0 text-muted" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{doc.fileName}</span>
-                      <span className="block text-xs capitalize text-muted">
-                        {doc.type} · {formatDate(doc.uploadedAt)}
-                        {doc.expiresOn ? ` · expires ${formatDate(doc.expiresOn)}` : ""}
+                      <span className="block text-xs text-muted">
+                        {t(docTypeKey(doc.type))} · {formatDate(doc.uploadedAt)}
+                        {doc.expiresOn
+                          ? ` · ${t("documents.expiresOn", { date: formatDate(doc.expiresOn) })}`
+                          : ""}
                       </span>
                     </span>
                   </li>
@@ -247,26 +262,28 @@ function JewelryDetail() {
           </Card>
 
           <Card>
-            <CardHeader title="History" description="Movements are permanent and never edited" />
+            <CardHeader title={t("item.history")} description={t("item.historyDesc")} />
             {movements.length === 0 ? (
-              <EmptyState title="No movements recorded" />
+              <EmptyState title={t("item.noMovements")} />
             ) : (
               <ol className="divide-y divide-border">
                 {movements.map((m) => (
                   <li key={m.id} className="px-4 py-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium capitalize">{m.type}</p>
-                      <Badge>{m.returnedAt ? "Closed" : "Open"}</Badge>
+                      <p className="text-sm font-medium">{t(movementTypeKey(m.type))}</p>
+                      <Badge>{m.returnedAt ? t("common.closed") : t("common.open")}</Badge>
                     </div>
                     <p className="mt-0.5 text-sm text-muted">
                       {m.fromLocation} → {m.toLocation}
                     </p>
                     <p className="mt-0.5 text-xs text-muted">
-                      {formatDateTime(m.takenAt)} by {userById(m.actorId)?.displayName ?? "—"}
+                      {formatDateTime(m.takenAt)} · {userById(m.actorId)?.displayName ?? "—"}
                       {m.reason ? ` · ${m.reason}` : ""}
                     </p>
                     {m.returnedAt ? (
-                      <p className="text-xs text-muted">Closed {formatDateTime(m.returnedAt)}</p>
+                      <p className="text-xs text-muted">
+                        {t("item.closedOn", { when: formatDateTime(m.returnedAt) })}
+                      </p>
                     ) : null}
                   </li>
                 ))}
@@ -275,14 +292,14 @@ function JewelryDetail() {
           </Card>
 
           <Card>
-            <CardHeader title="Label" description="Stable ID — printed labels never need reprinting" />
+            <CardHeader title={t("item.label")} description={t("item.labelDesc")} />
             <div className="flex items-center gap-4 p-4">
               <QrPlaceholder value={item.id} />
               <div className="min-w-0">
                 <p className="truncate font-mono text-sm">{item.id}</p>
                 <LinkButton href={`/scan/?id=${item.id}`} size="sm" className="mt-2">
                   <QrCode className="size-4" />
-                  Open scanner
+                  {t("item.openScanner")}
                 </LinkButton>
               </div>
             </div>
@@ -290,7 +307,7 @@ function JewelryDetail() {
 
           <Button variant="danger" className="w-full" onClick={() => setArchiveOpen(true)}>
             <Archive className="size-4" />
-            Archive item
+            {t("item.archive")}
           </Button>
         </div>
       </div>
@@ -308,14 +325,14 @@ function JewelryDetail() {
       <Modal
         open={collectOpen}
         onClose={() => setCollectOpen(false)}
-        title="Collect from jeweler"
+        title={t("item.collectTitle")}
         footer={
           <Button variant="ghost" onClick={() => setCollectOpen(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         }
       >
-        <p className="mb-3 text-sm text-muted">Which locker is it going back into?</p>
+        <p className="mb-3 text-sm text-muted">{t("item.collectBody")}</p>
         <div className="space-y-2">
           {state.lockers.map((l) => (
             <Button
@@ -345,11 +362,11 @@ function JewelryDetail() {
       <Modal
         open={archiveOpen}
         onClose={() => setArchiveOpen(false)}
-        title="Archive this item?"
+        title={t("item.archiveConfirm")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setArchiveOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="danger"
@@ -359,15 +376,12 @@ function JewelryDetail() {
                 router.push("/jewelry/");
               }}
             >
-              Archive
+              {t("item.archive")}
             </Button>
           </>
         }
       >
-        <p className="text-sm text-muted">
-          Archiving hides <strong className="text-text">{item.name}</strong> from the inventory but
-          keeps its full movement history. Nothing is deleted.
-        </p>
+        <p className="text-sm text-muted">{t("item.archiveBody", { name: item.name })}</p>
       </Modal>
     </>
   );
@@ -384,6 +398,7 @@ function ServiceModal({
   defaultJeweler: string;
   onSubmit: (jeweler: string, reason: string, expectedBack: string) => void;
 }) {
+  const t = useT();
   const [jeweler, setJeweler] = useState(defaultJeweler);
   const [reason, setReason] = useState("");
   const [back, setBack] = useState(addDays(today(), 7));
@@ -392,34 +407,38 @@ function ServiceModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Send for service"
+      title={t("item.serviceTitle")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             variant="primary"
             disabled={!jeweler.trim()}
             onClick={() => onSubmit(jeweler.trim(), reason.trim(), back)}
           >
-            Send
+            {t("item.send")}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Jeweler" required>
-          <Input value={jeweler} onChange={(e) => setJeweler(e.target.value)} placeholder="Shop name" />
+        <Field label={t("item.serviceShop")} required>
+          <Input
+            value={jeweler}
+            onChange={(e) => setJeweler(e.target.value)}
+            placeholder={t("item.serviceShopPlaceholder")}
+          />
         </Field>
-        <Field label="Reason">
+        <Field label={t("common.reason")}>
           <Input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Resize, polish, clasp repair…"
+            placeholder={t("item.serviceReasonPlaceholder")}
           />
         </Field>
-        <Field label="Expected back">
+        <Field label={t("item.expectedBackLabel")}>
           <Input type="date" value={back} onChange={(e) => setBack(e.target.value)} />
         </Field>
       </div>
@@ -438,28 +457,28 @@ function ExtendModal({
   current: string;
   onSubmit: (date: string) => void;
 }) {
+  const t = useT();
   const [date, setDate] = useState(addDays(current, 7));
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Extend due date"
+      title={t("item.extendTitle")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" onClick={() => onSubmit(date)}>
-            Extend
+            {t("item.extend")}
           </Button>
         </>
       }
     >
       <p className="mb-3 text-sm text-muted">
-        Currently due {formatDate(current)}. The change is recorded in the audit log, so the original
-        promise stays visible.
+        {t("item.extendBody", { date: formatDate(current) })}
       </p>
-      <Field label="New return date">
+      <Field label={t("item.newReturnDate")}>
         <Input type="date" value={date} min={today()} onChange={(e) => setDate(e.target.value)} />
       </Field>
     </Modal>

@@ -5,21 +5,16 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, ChevronLeft, MapPin, Pencil, Plus, Undo2 } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
-import { addDays, formatDate, relativeDays, today } from "@/lib/format";
-import {
-  Button,
-  Card,
-  CardHeader,
-  EmptyState,
-  LinkButton,
-  Modal,
-} from "@/components/ui";
+import { addDays, formatDate, today } from "@/lib/format";
+import { useRelativeDays, useT } from "@/lib/i18n";
+import { Button, Card, CardHeader, EmptyState, LinkButton, Modal } from "@/components/ui";
 import { ItemRow } from "@/components/vault";
 import { EventModal } from "../page";
 
 export default function EventDetailPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <EventDetail />
     </Suspense>
   );
@@ -28,6 +23,8 @@ export default function EventDetailPage() {
 function EventDetail() {
   const id = useSearchParams().get("id") ?? undefined;
   const { state, eventById, itemById, saveEvent, returnItems } = useVault();
+  const t = useT();
+  const relative = useRelativeDays();
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
   const [returning, setReturning] = useState(false);
@@ -37,10 +34,10 @@ function EventDetail() {
   if (!event) {
     return (
       <EmptyState
-        title="Event not found"
+        title={t("event.notFound")}
         action={
           <LinkButton href="/events/" variant="primary" size="sm">
-            Back to events
+            {t("event.backToEvents")}
           </LinkButton>
         }
       />
@@ -62,7 +59,7 @@ function EventDetail() {
         className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-text"
       >
         <ChevronLeft className="size-4" />
-        Events
+        {t("events.title")}
       </Link>
 
       <div className="mb-5 flex items-start justify-between gap-3">
@@ -70,22 +67,22 @@ function EventDetail() {
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{event.name}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
             <span className="flex items-center gap-1">
-              <CalendarDays className="size-3.5" />
+              <CalendarDays className="size-3.5 shrink-0" />
               {formatDate(event.startsOn)}
               {event.endsOn !== event.startsOn ? ` – ${formatDate(event.endsOn)}` : ""}
             </span>
             {event.location ? (
               <span className="flex items-center gap-1">
-                <MapPin className="size-3.5" />
+                <MapPin className="size-3.5 shrink-0" />
                 {event.location}
               </span>
             ) : null}
-            <span>{relativeDays(today(), event.startsOn)}</span>
+            <span>{relative(today(), event.startsOn)}</span>
           </p>
         </div>
         <Button size="sm" onClick={() => setEditing(true)}>
           <Pencil className="size-4" />
-          Edit
+          {t("common.edit")}
         </Button>
       </div>
 
@@ -103,28 +100,27 @@ function EventDetail() {
         <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-medium">
-              {withMembers.length} of {attached.length} items collected
+              {t("event.collected", { collected: withMembers.length, total: attached.length })}
             </p>
             <p className="mt-0.5 text-sm text-muted">
               {stillInLocker.length > 0
-                ? `${stillInLocker.length} still in a locker. Due back ${formatDate(addDays(event.endsOn, 1))} once taken.`
-                : "Everything for this event is out of the locker."}
+                ? t("event.stillInLocker", {
+                    n: stillInLocker.length,
+                    date: formatDate(addDays(event.endsOn, 1)),
+                  })
+                : t("event.allOut")}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
             {stillInLocker.length > 0 ? (
-              <LinkButton
-                href={`/movements/takeout/?event=${event.id}`}
-                variant="primary"
-                size="sm"
-              >
-                Take out {stillInLocker.length}
+              <LinkButton href={`/movements/takeout/?event=${event.id}`} variant="primary" size="sm">
+                {t("event.takeOutN", { n: stillInLocker.length })}
               </LinkButton>
             ) : null}
             {withMembers.length > 0 ? (
               <Button size="sm" onClick={() => setReturning(true)}>
                 <Undo2 className="size-4" />
-                Return all
+                {t("event.returnAll")}
               </Button>
             ) : null}
           </div>
@@ -133,22 +129,22 @@ function EventDetail() {
 
       <Card>
         <CardHeader
-          title="Attached jewelry"
-          description={`${attached.length} item${attached.length === 1 ? "" : "s"}`}
+          title={t("event.attached")}
+          description={t("event.attachedCount", { n: attached.length })}
           action={
             <Button size="sm" variant="ghost" onClick={() => setPicking(true)}>
               <Plus className="size-4" />
-              Attach
+              {t("event.attach")}
             </Button>
           }
         />
         {attached.length === 0 ? (
           <EmptyState
-            title="Nothing attached yet"
-            description="Pick the pieces needed for this occasion."
+            title={t("event.nothingAttached")}
+            description={t("event.nothingAttachedDesc")}
             action={
               <Button size="sm" variant="primary" onClick={() => setPicking(true)}>
-                Attach jewelry
+                {t("event.attachJewelry")}
               </Button>
             }
           />
@@ -168,7 +164,7 @@ function EventDetail() {
                     }}
                     className="shrink-0 text-sm text-muted hover:text-danger"
                   >
-                    Remove
+                    {t("common.remove")}
                   </button>
                 }
               />
@@ -202,15 +198,15 @@ function EventDetail() {
       <Modal
         open={returning}
         onClose={() => setReturning(false)}
-        title="Return all event items"
+        title={t("event.returnAllTitle")}
         footer={
           <Button variant="ghost" onClick={() => setReturning(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         }
       >
         <p className="mb-3 text-sm text-muted">
-          Returning {withMembers.length} item(s). Which locker are they going into?
+          {t("event.returnAllBody", { n: withMembers.length })}
         </p>
         <div className="space-y-2">
           {state.lockers.map((l) => (
@@ -218,7 +214,10 @@ function EventDetail() {
               key={l.id}
               className="w-full justify-start"
               onClick={() => {
-                returnItems(withMembers.map((i) => i!.id), l.id);
+                returnItems(
+                  withMembers.map((i) => i!.id),
+                  l.id,
+                );
                 setReturning(false);
               }}
             >
@@ -241,6 +240,7 @@ function AttachModal({
   onSave: (ids: string[]) => void;
 }) {
   const { state } = useVault();
+  const t = useT();
   const [selected, setSelected] = useState<string[]>(attachedIds);
   const candidates = activeItems(state);
 
@@ -248,14 +248,14 @@ function AttachModal({
     <Modal
       open
       onClose={onClose}
-      title="Attach jewelry"
+      title={t("event.attachJewelry")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" onClick={() => onSave(selected)}>
-            Save {selected.length} item{selected.length === 1 ? "" : "s"}
+            {t("event.saveN", { n: selected.length })}
           </Button>
         </>
       }

@@ -53,6 +53,34 @@ src/
 touch storage directly, so replacing fixtures with Supabase queries changes that
 one file rather than the UI.
 
+## Languages
+
+English and Tamil, switchable from the sidebar, the phone "More" sheet, Settings,
+and the login screen. The choice is stored per device (`jv:lang:v1`).
+
+Client-side rather than route-based (`/ta/…`): static export rules out the
+middleware locale routing needs, and a per-device preference suits a PWA where
+each family member picks once.
+
+- `src/lib/i18n.tsx` holds both catalogs. The Tamil one is typed
+  `Record<MessageKey, string>`, so a missing or misspelled key is a **compile
+  error**, not a silent English fallback. 431 keys each.
+- Dates and currency follow the language (`ta-IN` / `en-IN`) via
+  `configureFormatting()`, called during render — an effect would run a render
+  late and leave the first frame after a switch in the old locale.
+- Notifications and audit entries store **keys and params, not text**
+  (`{ kind: "overdue", params: { item, holder, days } }`), so one stored row
+  renders in whichever language the reader chose. The Worker will do the same
+  using each recipient's preference.
+- User data — item names, locker names, people's names, notes — is never
+  translated. A Tamil notification reads "Ramya's Wedding இன்னும் 1 நாளில்
+  தொடங்குகிறது": Tamil template, name exactly as entered.
+- Tamil font fallbacks and a taller `:lang(ta)` line-height are in `globals.css`;
+  without them Tamil vowel signs clip or fall back to a serif.
+
+Domain vocabulary uses real Tamil rather than transliteration where it exists —
+purity is **மாற்று** (the traditional term for karat), not "காரட்".
+
 ## Decisions worth knowing
 
 **Detail pages use query params** (`/jewelry/item/?id=…`), not `[id]` routes.

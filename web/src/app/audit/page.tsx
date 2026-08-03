@@ -4,10 +4,12 @@ import { useState } from "react";
 import { ScrollText } from "lucide-react";
 import { useVault } from "@/lib/store";
 import { formatDateTime } from "@/lib/format";
+import { useT, type MessageKey } from "@/lib/i18n";
 import { Avatar, Badge, Card, EmptyState, PageHeader, Select } from "@/components/ui";
 
 export default function AuditPage() {
   const { state, userById } = useVault();
+  const t = useT();
   const [actor, setActor] = useState("all");
 
   const entries = state.audit
@@ -17,14 +19,11 @@ export default function AuditPage() {
 
   return (
     <>
-      <PageHeader
-        title="Audit log"
-        subtitle="Append-only record of every change. Entries are never edited or removed."
-      />
+      <PageHeader title={t("audit.title")} subtitle={t("audit.subtitle")} />
 
       <div className="mb-3">
         <Select value={actor} onChange={(e) => setActor(e.target.value)} className="sm:max-w-xs">
-          <option value="all">Everyone</option>
+          <option value="all">{t("common.everyone")}</option>
           {state.users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.displayName}
@@ -34,7 +33,7 @@ export default function AuditPage() {
       </div>
 
       {entries.length === 0 ? (
-        <EmptyState title="No activity yet" icon={<ScrollText className="size-8" />} />
+        <EmptyState title={t("audit.empty")} icon={<ScrollText className="size-8" />} />
       ) : (
         <Card>
           <ol className="divide-y divide-border">
@@ -45,13 +44,15 @@ export default function AuditPage() {
                   <Avatar initials={user?.initials ?? "??"} />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm">
-                      <span className="font-medium">{user?.displayName ?? "Unknown"}</span>{" "}
-                      <span className="text-muted">{entry.action.toLowerCase()}</span>
+                      <span className="font-medium">
+                        {user?.displayName ?? t("common.unknown")}
+                      </span>{" "}
+                      <span className="text-muted">{t(entry.actionKey as MessageKey)}</span>
                     </p>
                     <p className="mt-0.5 break-words text-sm text-muted">{entry.detail}</p>
                     <p className="mt-1 text-xs text-muted">{formatDateTime(entry.at)}</p>
                   </div>
-                  <Badge>{entry.entityType}</Badge>
+                  <Badge>{t(`entity.${entry.entityType}` as MessageKey)}</Badge>
                 </li>
               );
             })}

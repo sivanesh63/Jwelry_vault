@@ -3,6 +3,7 @@
 /** Domain-specific presentational components shared across screens. */
 
 import Link from "next/link";
+import { useCallback } from "react";
 import {
   AlertTriangle,
   Circle,
@@ -16,15 +17,20 @@ import {
 import { cn } from "@/lib/utils";
 import { useVault } from "@/lib/store";
 import {
-  STATUS_LABEL,
   STATUS_TONE,
   daysBetween,
   estimateValue,
   formatMoneyShort,
   formatWeight,
-  relativeDays,
   today,
 } from "@/lib/format";
+import {
+  categoryKey,
+  statusKey,
+  usePurity,
+  useRelativeDays,
+  useT,
+} from "@/lib/i18n";
 import type { JewelryCategory, JewelryItem } from "@/lib/types";
 import { Badge } from "./ui";
 
@@ -40,17 +46,18 @@ const CATEGORY_ICON: Record<JewelryCategory, typeof Gem> = {
   other: Gem,
 };
 
-export const CATEGORY_LABEL: Record<JewelryCategory, string> = {
-  necklace: "Necklace",
-  bangle: "Bangle",
-  ring: "Ring",
-  earring: "Earring",
-  chain: "Chain",
-  bracelet: "Bracelet",
-  anklet: "Anklet",
-  coin: "Coin",
-  other: "Other",
-};
+/** Canonical category order for dropdowns; labels come from the catalog. */
+export const CATEGORIES: JewelryCategory[] = [
+  "necklace",
+  "bangle",
+  "ring",
+  "earring",
+  "chain",
+  "bracelet",
+  "anklet",
+  "coin",
+  "other",
+];
 
 /**
  * Photo placeholder.
@@ -90,12 +97,29 @@ function hashHue(id: string): number {
 }
 
 export function StatusBadge({ item }: { item: JewelryItem }) {
-  return <Badge tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</Badge>;
+  const t = useT();
+  return <Badge tone={STATUS_TONE[item.status]}>{t(statusKey(item.status))}</Badge>;
+}
+
+/**
+ * Where an item is, as display text: the locker/holder/jeweler name when there
+ * is one, otherwise the localised status label ("In transit" / "வழியில்").
+ */
+export function useLocationLabel(): (item: JewelryItem) => string {
+  const { locationOf } = useVault();
+  const t = useT();
+  return useCallback(
+    (item: JewelryItem) => locationOf(item) ?? t(statusKey(item.status)),
+    [locationOf, t],
+  );
 }
 
 /** Red "overdue" or amber "due soon" pill; renders nothing when neither applies. */
 export function DueBadge({ item }: { item: JewelryItem }) {
   const { state } = useVault();
+  const t = useT();
+  const relative = useRelativeDays();
+
   if (!item.expectedReturnOn) return null;
   if (item.status !== "with_member" && item.status !== "at_jeweler") return null;
 
@@ -104,14 +128,14 @@ export function DueBadge({ item }: { item: JewelryItem }) {
     return (
       <Badge tone="bg-danger/10 text-danger border-danger/30">
         <AlertTriangle className="size-3" />
-        Overdue {Math.abs(delta)}d
+        {t("badge.overdueDays", { n: Math.abs(delta) })}
       </Badge>
     );
   }
   if (delta <= state.settings.dueSoonLeadDays) {
     return (
       <Badge tone="bg-warn/10 text-warn border-warn/30">
-        Due {relativeDays(today(), item.expectedReturnOn)}
+        {t("badge.due", { when: relative(today(), item.expectedReturnOn) })}
       </Badge>
     );
   }
@@ -134,7 +158,10 @@ export function ItemRow({
   selected?: boolean;
   onToggle?: () => void;
 }) {
-  const { state, locationOf } = useVault();
+  const { state } = useVault();
+  const t = useT();
+  const purity = usePurity();
+  const locationLabel = useLocationLabel();
   const value = estimateValue(item, state.settings);
 
   const body = (
@@ -146,9 +173,9 @@ export function ItemRow({
           <DueBadge item={item} />
         </div>
         <p className="mt-0.5 truncate text-sm text-muted">
-          {CATEGORY_LABEL[item.category]} · {formatWeight(item.grossWeight)} · {item.purity}K
+          {t(categoryKey(item.category))} · {formatWeight(item.grossWeight)} · {purity(item.purity)}
         </p>
-        <p className="mt-0.5 truncate text-xs text-muted">{locationOf(item)}</p>
+        <p className="mt-0.5 truncate text-xs text-muted">{locationLabel(item)}</p>
       </div>
       {right ?? (
         <div className="hidden shrink-0 text-right sm:block">

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { VaultProvider } from "@/lib/store";
+import { LanguageProvider } from "@/lib/i18n";
 import { AppShell } from "@/components/app-shell";
 
 // No next/font here on purpose: webfonts are fetched at build time, and this
@@ -36,9 +37,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full antialiased">
-        <VaultProvider>
-          <AppShell>{children}</AppShell>
-        </VaultProvider>
+        <LanguageProvider>
+          <VaultProvider>
+            <AppShell>{children}</AppShell>
+          </VaultProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

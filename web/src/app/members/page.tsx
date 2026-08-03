@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MailPlus, ShieldCheck, UserMinus } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
 import { estimateValue, formatMoneyShort, formatWeight } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import {
   Avatar,
   Badge,
@@ -20,6 +21,7 @@ import type { Role } from "@/lib/types";
 
 export default function MembersPage() {
   const { state, currentUser, inviteMember, deactivateMember } = useVault();
+  const t = useT();
   const [inviting, setInviting] = useState(false);
 
   const isAdmin = currentUser.role === "admin";
@@ -28,13 +30,13 @@ export default function MembersPage() {
   return (
     <>
       <PageHeader
-        title="Family members"
-        subtitle={`${state.users.filter((u) => u.isActive).length} active`}
+        title={t("members.title")}
+        subtitle={t("members.subtitle", { n: state.users.filter((u) => u.isActive).length })}
         action={
           isAdmin ? (
             <Button variant="primary" onClick={() => setInviting(true)}>
               <MailPlus className="size-4" />
-              Invite
+              {t("members.invite")}
             </Button>
           ) : null
         }
@@ -47,10 +49,7 @@ export default function MembersPage() {
       <Card className="mb-4 bg-surface-2">
         <div className="flex items-start gap-3 p-4">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-muted" />
-          <p className="text-sm text-muted">
-            This vault is invite-only. New members receive an email invitation and set their own
-            password — there is no public sign-up page.
-          </p>
+          <p className="text-sm text-muted">{t("members.inviteOnly")}</p>
         </div>
       </Card>
 
@@ -74,11 +73,13 @@ export default function MembersPage() {
                           : undefined
                       }
                     >
-                      {user.role}
+                      {t(user.role === "admin" ? "members.roleAdmin" : "members.roleMember")}
                     </Badge>
-                    {user.id === currentUser.id ? <Badge>you</Badge> : null}
+                    {user.id === currentUser.id ? <Badge>{t("common.you")}</Badge> : null}
                     {!user.isActive ? (
-                      <Badge tone="bg-danger/10 text-danger border-danger/30">inactive</Badge>
+                      <Badge tone="bg-danger/10 text-danger border-danger/30">
+                        {t("members.inactive")}
+                      </Badge>
                     ) : null}
                   </div>
                   <p className="mt-0.5 truncate text-sm text-muted">{user.email}</p>
@@ -88,21 +89,23 @@ export default function MembersPage() {
               <div className="grid grid-cols-3 gap-2 border-t border-border px-4 py-3 text-center">
                 <div>
                   <p className="tabular text-lg font-semibold">{owned.length}</p>
-                  <p className="text-xs text-muted">owns</p>
+                  <p className="text-xs text-muted">{t("members.owns")}</p>
                 </div>
                 <div>
                   <p className="tabular text-lg font-semibold">{holding.length}</p>
-                  <p className="text-xs text-muted">holding</p>
+                  <p className="text-xs text-muted">{t("members.holding")}</p>
                 </div>
                 <div>
                   <p className="tabular text-lg font-semibold">{formatMoneyShort(ownedValue)}</p>
-                  <p className="text-xs text-muted">owned value</p>
+                  <p className="text-xs text-muted">{t("members.ownedValue")}</p>
                 </div>
               </div>
 
               {holding.length > 0 ? (
                 <div className="border-t border-border px-4 py-3">
-                  <p className="mb-1.5 text-xs font-medium text-muted">Currently holding</p>
+                  <p className="mb-1.5 text-xs font-medium text-muted">
+                    {t("members.currentlyHolding")}
+                  </p>
                   <ul className="space-y-1">
                     {holding.map((item) => (
                       <li key={item.id}>
@@ -112,7 +115,10 @@ export default function MembersPage() {
                         >
                           {item.name}
                         </Link>
-                        <span className="text-xs text-muted"> · {formatWeight(item.grossWeight)}</span>
+                        <span className="text-xs text-muted">
+                          {" "}
+                          · {formatWeight(item.grossWeight)}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -127,7 +133,7 @@ export default function MembersPage() {
                     className="flex items-center gap-1.5 text-sm text-muted hover:text-danger"
                   >
                     <UserMinus className="size-4" />
-                    Deactivate
+                    {t("members.deactivate")}
                   </button>
                 </div>
               ) : null}
@@ -156,6 +162,7 @@ function InviteModal({
   onClose: () => void;
   onInvite: (name: string, email: string, role: Role) => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
@@ -166,27 +173,31 @@ function InviteModal({
     <Modal
       open
       onClose={onClose}
-      title="Invite a family member"
+      title={t("members.inviteTitle")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             variant="primary"
             disabled={!valid}
             onClick={() => onInvite(name.trim(), email.trim(), role)}
           >
-            Send invite
+            {t("members.sendInvite")}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Name" required>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Priya" />
+        <Field label={t("members.name")} required>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("members.namePlaceholder")}
+          />
         </Field>
-        <Field label="Email" required hint="They receive a link to set their own password">
+        <Field label={t("members.email")} required hint={t("members.emailHint")}>
           <Input
             type="email"
             value={email}
@@ -194,10 +205,10 @@ function InviteModal({
             placeholder="priya@example.com"
           />
         </Field>
-        <Field label="Role" hint="Admins can add items, configure lockers, and invite others">
+        <Field label={t("members.role")} hint={t("members.roleHint")}>
           <Select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            <option value="member">Member</option>
-            <option value="admin">Admin</option>
+            <option value="member">{t("members.roleMember")}</option>
+            <option value="admin">{t("members.roleAdmin")}</option>
           </Select>
         </Field>
       </div>

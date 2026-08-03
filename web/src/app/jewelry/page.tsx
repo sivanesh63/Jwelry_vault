@@ -3,16 +3,19 @@
 import { useMemo, useState } from "react";
 import { Plus, Search, SlidersHorizontal } from "lucide-react";
 import { activeItems, STATUS_ORDER, useVault } from "@/lib/store";
-import { STATUS_LABEL, estimateValue, formatMoneyShort, formatWeight } from "@/lib/format";
+import { estimateValue, formatMoneyShort, formatWeight } from "@/lib/format";
+import { categoryKey, statusKey, useT } from "@/lib/i18n";
 import { Card, EmptyState, Input, LinkButton, PageHeader, Select } from "@/components/ui";
-import { CATEGORY_LABEL, ItemRow } from "@/components/vault";
+import { CATEGORIES, ItemRow, useLocationLabel } from "@/components/vault";
 import type { ItemStatus, JewelryCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type SortKey = "name" | "weight" | "value" | "recent";
 
 export default function JewelryListPage() {
-  const { state, userById, locationOf } = useVault();
+  const { state, userById } = useVault();
+  const t = useT();
+  const locationLabel = useLocationLabel();
 
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<ItemStatus | "all">("all");
@@ -27,17 +30,19 @@ export default function JewelryListPage() {
 
     if (q) {
       // Search spans the fields the plan called for: name, category, purity,
-      // hallmark, holder and location.
+      // hallmark, holder and location. Category is matched in both languages so
+      // searching "மாலை" or "necklace" works whichever is active.
       list = list.filter((item) => {
         const haystack = [
           item.name,
-          CATEGORY_LABEL[item.category],
+          t(categoryKey(item.category)),
+          item.category,
           item.hallmarkNo ?? "",
           item.jeweler ?? "",
           item.notes ?? "",
           `${item.purity}k`,
           `${item.grossWeight}`,
-          locationOf(item),
+          locationLabel(item),
           userById(item.ownerId)?.displayName ?? "",
         ]
           .join(" ")
@@ -68,7 +73,7 @@ export default function JewelryListPage() {
         break;
     }
     return sorted;
-  }, [state, query, status, category, holder, sort, locationOf, userById]);
+  }, [state, query, status, category, holder, sort, locationLabel, userById, t]);
 
   const totalWeight = items.reduce((s, i) => s + i.grossWeight, 0);
   const totalValue = items.reduce((s, i) => s + estimateValue(i, state.settings), 0);
@@ -77,12 +82,16 @@ export default function JewelryListPage() {
   return (
     <>
       <PageHeader
-        title="Jewelry"
-        subtitle={`${items.length} item${items.length === 1 ? "" : "s"} · ${formatWeight(totalWeight)} · ${formatMoneyShort(totalValue)}`}
+        title={t("jewelry.title")}
+        subtitle={t("jewelry.summary", {
+          count: items.length,
+          weight: formatWeight(totalWeight),
+          value: formatMoneyShort(totalValue),
+        })}
         action={
           <LinkButton href="/jewelry/edit/" variant="primary">
             <Plus className="size-4" />
-            Add
+            {t("common.add")}
           </LinkButton>
         }
       />
@@ -93,7 +102,7 @@ export default function JewelryListPage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, hallmark, holder, location…"
+            placeholder={t("jewelry.searchPlaceholder")}
             className="pl-9"
             type="search"
           />
@@ -107,7 +116,7 @@ export default function JewelryListPage() {
               ? "border-gold bg-gold-soft text-gold-deep"
               : "border-border bg-surface text-muted hover:bg-surface-2",
           )}
-          aria-label="Filters"
+          aria-label={t("jewelry.filters")}
           aria-expanded={showFilters}
         >
           <SlidersHorizontal className="size-4" />
@@ -117,10 +126,10 @@ export default function JewelryListPage() {
       {showFilters ? (
         <Card className="mb-3 grid gap-3 p-3 sm:grid-cols-4">
           <Select value={status} onChange={(e) => setStatus(e.target.value as ItemStatus | "all")}>
-            <option value="all">Any status</option>
+            <option value="all">{t("status.any")}</option>
             {STATUS_ORDER.map((s) => (
               <option key={s} value={s}>
-                {STATUS_LABEL[s]}
+                {t(statusKey(s))}
               </option>
             ))}
           </Select>
@@ -128,15 +137,15 @@ export default function JewelryListPage() {
             value={category}
             onChange={(e) => setCategory(e.target.value as JewelryCategory | "all")}
           >
-            <option value="all">Any category</option>
-            {(Object.keys(CATEGORY_LABEL) as JewelryCategory[]).map((c) => (
+            <option value="all">{t("category.any")}</option>
+            {CATEGORIES.map((c) => (
               <option key={c} value={c}>
-                {CATEGORY_LABEL[c]}
+                {t(categoryKey(c))}
               </option>
             ))}
           </Select>
           <Select value={holder} onChange={(e) => setHolder(e.target.value)}>
-            <option value="all">Anyone</option>
+            <option value="all">{t("jewelry.anyone")}</option>
             {state.users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.displayName}
@@ -144,10 +153,10 @@ export default function JewelryListPage() {
             ))}
           </Select>
           <Select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-            <option value="recent">Newest first</option>
-            <option value="name">Name A–Z</option>
-            <option value="weight">Heaviest</option>
-            <option value="value">Most valuable</option>
+            <option value="recent">{t("jewelry.sortRecent")}</option>
+            <option value="name">{t("jewelry.sortName")}</option>
+            <option value="weight">{t("jewelry.sortWeight")}</option>
+            <option value="value">{t("jewelry.sortValue")}</option>
           </Select>
         </Card>
       ) : null}
@@ -155,7 +164,9 @@ export default function JewelryListPage() {
       {/* Locker summary chips give a quick sense of distribution. */}
       <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto">
         {state.lockers.map((locker) => {
-          const count = activeItems(state).filter((i) => i.currentLockerId === locker.id && i.status === "in_locker").length;
+          const count = activeItems(state).filter(
+            (i) => i.currentLockerId === locker.id && i.status === "in_locker",
+          ).length;
           return (
             <span
               key={locker.id}
@@ -170,11 +181,11 @@ export default function JewelryListPage() {
       <Card>
         {items.length === 0 ? (
           <EmptyState
-            title="No matching items"
-            description="Try clearing the search or filters."
+            title={t("jewelry.noMatch")}
+            description={t("jewelry.noMatchDesc")}
             action={
               <LinkButton href="/jewelry/edit/" variant="primary" size="sm">
-                Add an item
+                {t("jewelry.addItem")}
               </LinkButton>
             }
           />

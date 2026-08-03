@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { CalendarDays, MapPin, Plus } from "lucide-react";
 import { useVault } from "@/lib/store";
-import { addDays, daysBetween, formatDate, relativeDays, today } from "@/lib/format";
+import { addDays, daysBetween, formatDate, today } from "@/lib/format";
+import { useRelativeDays, useT } from "@/lib/i18n";
 import {
   Badge,
   Button,
@@ -21,6 +22,7 @@ import type { FamilyEvent } from "@/lib/types";
 
 export default function EventsPage() {
   const { state, saveEvent } = useVault();
+  const t = useT();
   // Holds the draft event; built in the click handler so no id is generated
   // during render.
   const [creating, setCreating] = useState<FamilyEvent | null>(null);
@@ -32,8 +34,8 @@ export default function EventsPage() {
   return (
     <>
       <PageHeader
-        title="Events"
-        subtitle="Attach jewelry to an occasion, then take it all out in one step."
+        title={t("events.title")}
+        subtitle={t("events.subtitle")}
         action={
           <Button
             variant="primary"
@@ -49,15 +51,15 @@ export default function EventsPage() {
             }
           >
             <Plus className="size-4" />
-            Add
+            {t("common.add")}
           </Button>
         }
       />
 
       {upcoming.length === 0 ? (
         <EmptyState
-          title="No upcoming events"
-          description="Create one to plan which jewelry is needed and when it comes back."
+          title={t("events.noUpcoming")}
+          description={t("events.noUpcomingDesc")}
           icon={<CalendarDays className="size-8" />}
         />
       ) : (
@@ -70,7 +72,7 @@ export default function EventsPage() {
 
       {past.length > 0 ? (
         <>
-          <h2 className="mb-3 mt-8 text-sm font-semibold text-muted">Past events</h2>
+          <h2 className="mb-3 mt-8 text-sm font-semibold text-muted">{t("events.past")}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {past.map((event) => (
               <EventCard key={event.id} event={event} past />
@@ -95,6 +97,8 @@ export default function EventsPage() {
 
 function EventCard({ event, past }: { event: FamilyEvent; past?: boolean }) {
   const { state } = useVault();
+  const t = useT();
+  const relative = useRelativeDays();
   const ready = event.jewelryIds.filter(
     (id) => state.jewelry.find((j) => j.id === id)?.status === "with_member",
   ).length;
@@ -121,21 +125,21 @@ function EventCard({ event, past }: { event: FamilyEvent; past?: boolean }) {
                 : "border-border bg-surface-2 text-muted"
             }
           >
-            {relativeDays(today(), event.startsOn)}
+            {relative(today(), event.startsOn)}
           </Badge>
         ) : null}
       </div>
 
       {event.location ? (
         <p className="mt-2 flex items-center gap-1 text-xs text-muted">
-          <MapPin className="size-3" />
+          <MapPin className="size-3 shrink-0" />
           {event.location}
         </p>
       ) : null}
 
       <div className="mt-3">
-        <div className="mb-1.5 flex items-center justify-between text-xs">
-          <span className="text-muted">Items ready</span>
+        <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
+          <span className="text-muted">{t("events.itemsReady")}</span>
           <span className="tabular">
             {ready}/{event.jewelryIds.length}
           </span>
@@ -159,6 +163,7 @@ export function EventModal({
   onClose: () => void;
   onSave: (event: FamilyEvent) => void;
 }) {
+  const t = useT();
   const [form, setForm] = useState<FamilyEvent>(event);
 
   function set<K extends keyof FamilyEvent>(key: K, value: FamilyEvent[K]) {
@@ -169,28 +174,28 @@ export function EventModal({
     <Modal
       open
       onClose={onClose}
-      title={event.name ? "Edit event" : "New event"}
+      title={event.name ? t("events.editTitle") : t("events.newTitle")}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" disabled={!form.name.trim()} onClick={() => onSave(form)}>
-            Save
+            {t("common.save")}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
-        <Field label="Name" required>
+        <Field label={t("events.name")} required>
           <Input
             value={form.name}
             onChange={(e) => set("name", e.target.value)}
-            placeholder="Ramya's wedding"
+            placeholder={t("events.namePlaceholder")}
           />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Starts">
+          <Field label={t("events.starts")}>
             <Input
               type="date"
               value={form.startsOn}
@@ -205,7 +210,7 @@ export function EventModal({
               }}
             />
           </Field>
-          <Field label="Ends">
+          <Field label={t("events.ends")}>
             <Input
               type="date"
               value={form.endsOn}
@@ -214,10 +219,10 @@ export function EventModal({
             />
           </Field>
         </div>
-        <Field label="Location">
+        <Field label={t("events.location")}>
           <Input value={form.location ?? ""} onChange={(e) => set("location", e.target.value)} />
         </Field>
-        <Field label="Notes">
+        <Field label={t("events.notes")}>
           <Textarea value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} />
         </Field>
       </div>
