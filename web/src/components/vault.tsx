@@ -114,6 +114,31 @@ export function useLocationLabel(): (item: JewelryItem) => string {
   );
 }
 
+/**
+ * Category as shown to the user. "Other" items display the name the family
+ * typed in, so a piece recorded as "Oddiyanam" reads that way everywhere rather
+ * than collapsing to a generic label.
+ */
+export function useCategoryLabel(): (item: JewelryItem) => string {
+  const t = useT();
+  return useCallback(
+    (item: JewelryItem) =>
+      item.category === "other" && item.customCategory?.trim()
+        ? item.customCategory.trim()
+        : t(categoryKey(item.category)),
+    [t],
+  );
+}
+
+/**
+ * Whether monetary values may be rendered. Every price in the app goes through
+ * this, so the Settings toggle is the single point of control.
+ */
+export function useShowPrices(): boolean {
+  const { state } = useVault();
+  return state.settings.showPrices;
+}
+
 /** Red "overdue" or amber "due soon" pill; renders nothing when neither applies. */
 export function DueBadge({ item }: { item: JewelryItem }) {
   const { state } = useVault();
@@ -159,9 +184,10 @@ export function ItemRow({
   onToggle?: () => void;
 }) {
   const { state } = useVault();
-  const t = useT();
   const purity = usePurity();
   const locationLabel = useLocationLabel();
+  const categoryLabel = useCategoryLabel();
+  const showPrices = useShowPrices();
   const value = estimateValue(item, state.settings);
 
   const body = (
@@ -173,13 +199,15 @@ export function ItemRow({
           <DueBadge item={item} />
         </div>
         <p className="mt-0.5 truncate text-sm text-muted">
-          {t(categoryKey(item.category))} · {formatWeight(item.grossWeight)} · {purity(item.purity)}
+          {categoryLabel(item)} · {formatWeight(item.grossWeight)} · {purity(item.purity)}
         </p>
         <p className="mt-0.5 truncate text-xs text-muted">{locationLabel(item)}</p>
       </div>
       {right ?? (
         <div className="hidden shrink-0 text-right sm:block">
-          <p className="tabular text-sm font-medium">{formatMoneyShort(value)}</p>
+          {showPrices ? (
+            <p className="tabular text-sm font-medium">{formatMoneyShort(value)}</p>
+          ) : null}
           <StatusBadge item={item} />
         </div>
       )}

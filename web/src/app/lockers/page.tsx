@@ -17,12 +17,14 @@ import {
   PageHeader,
   Select,
 } from "@/components/ui";
-import { newId } from "@/lib/utils";
+import { useShowPrices } from "@/components/vault";
+import { cn, newId } from "@/lib/utils";
 import type { Locker } from "@/lib/types";
 
 export default function LockersPage() {
   const { state, userById, recordLockerVisit, saveLocker } = useVault();
   const t = useT();
+  const showPrices = useShowPrices();
   const [editing, setEditing] = useState<Locker | null>(null);
 
   const items = activeItems(state);
@@ -91,7 +93,12 @@ export default function LockersPage() {
               />
 
               <div className="space-y-3 p-4">
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div
+                  className={cn(
+                    "grid gap-2 text-center",
+                    showPrices ? "grid-cols-3" : "grid-cols-2",
+                  )}
+                >
                   <div>
                     <p className="tabular text-lg font-semibold">{contents.length}</p>
                     <p className="text-xs text-muted">{t("lockers.items")}</p>
@@ -100,10 +107,12 @@ export default function LockersPage() {
                     <p className="tabular text-lg font-semibold">{formatWeight(weight)}</p>
                     <p className="text-xs text-muted">{t("lockers.gross")}</p>
                   </div>
-                  <div>
-                    <p className="tabular text-lg font-semibold">{formatMoneyShort(value)}</p>
-                    <p className="text-xs text-muted">{t("lockers.value")}</p>
-                  </div>
+                  {showPrices ? (
+                    <div>
+                      <p className="tabular text-lg font-semibold">{formatMoneyShort(value)}</p>
+                      <p className="text-xs text-muted">{t("lockers.value")}</p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div>

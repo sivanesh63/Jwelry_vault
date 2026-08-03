@@ -8,7 +8,7 @@ import { useVault } from "@/lib/store";
 import { estimateValue, formatMoney, today } from "@/lib/format";
 import { categoryKey, usePurity, useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, Field, Input, Select, Textarea } from "@/components/ui";
-import { CATEGORIES } from "@/components/vault";
+import { CATEGORIES, useShowPrices } from "@/components/vault";
 import { newId } from "@/lib/utils";
 import type { JewelryCategory, JewelryItem } from "@/lib/types";
 
@@ -27,6 +27,7 @@ function EditJewelry() {
   const { state, itemById, saveItem, currentUser } = useVault();
   const t = useT();
   const purity = usePurity();
+  const showPrices = useShowPrices();
 
   const existing = itemById(id);
   const isNew = !existing;
@@ -159,6 +160,21 @@ function EditJewelry() {
                   </Select>
                 </Field>
               </div>
+              {/*
+                "Other" is a real category with a name, not a dead end — the
+                family types what the piece is actually called and that name is
+                what shows everywhere afterwards.
+              */}
+              {form.category === "other" ? (
+                <Field label={t("edit.customCategory")} hint={t("edit.customCategoryHint")}>
+                  <Input
+                    value={form.customCategory ?? ""}
+                    onChange={(e) => set("customCategory", e.target.value)}
+                    placeholder={t("edit.customCategoryPlaceholder")}
+                    autoFocus
+                  />
+                </Field>
+              ) : null}
               {isNew ? (
                 <Field label={t("edit.storedIn")}>
                   <Select
@@ -234,13 +250,15 @@ function EditJewelry() {
                 </Select>
               </Field>
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-2 px-4 py-3">
-              <span className="flex items-center gap-1.5 text-sm text-muted">
-                <Sparkles className="size-4" />
-                {t("dashboard.estValue")}
-              </span>
-              <span className="tabular font-semibold">{formatMoney(preview)}</span>
-            </div>
+            {showPrices ? (
+              <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-2 px-4 py-3">
+                <span className="flex items-center gap-1.5 text-sm text-muted">
+                  <Sparkles className="size-4 shrink-0" />
+                  {t("dashboard.estValue")}
+                </span>
+                <span className="tabular font-semibold">{formatMoney(preview)}</span>
+              </div>
+            ) : null}
           </Card>
 
           <Card>
@@ -264,15 +282,17 @@ function EditJewelry() {
                   className={fieldTone(scanned, "purchaseDate")}
                 />
               </Field>
-              <Field label={t("item.purchasePrice")}>
-                <Input
-                  type="number"
-                  min="0"
-                  value={form.purchasePrice ?? ""}
-                  onChange={(e) => set("purchasePrice", Number(e.target.value))}
-                  className={fieldTone(scanned, "purchasePrice")}
-                />
-              </Field>
+              {showPrices ? (
+                <Field label={t("item.purchasePrice")}>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={form.purchasePrice ?? ""}
+                    onChange={(e) => set("purchasePrice", Number(e.target.value))}
+                    className={fieldTone(scanned, "purchasePrice")}
+                  />
+                </Field>
+              ) : null}
             </div>
             {scanned.length > 0 ? (
               <p className="border-t border-border px-4 py-2.5 text-xs text-gold-deep">

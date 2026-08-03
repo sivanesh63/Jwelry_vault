@@ -3,12 +3,13 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CalendarDays, ChevronLeft, MapPin, Pencil, Plus, Undo2 } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, MapPin, Pencil, Plus, Undo2 } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
 import { addDays, formatDate, today } from "@/lib/format";
 import { useRelativeDays, useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, EmptyState, LinkButton, Modal } from "@/components/ui";
 import { ItemRow } from "@/components/vault";
+import { cn } from "@/lib/utils";
 import { EventModal } from "../page";
 
 export default function EventDetailPage() {
@@ -242,7 +243,19 @@ function AttachModal({
   const { state } = useVault();
   const t = useT();
   const [selected, setSelected] = useState<string[]>(attachedIds);
+  /** Empty means "no filter" rather than "show nothing" — the useful default. */
+  const [owners, setOwners] = useState<string[]>([]);
+
   const candidates = activeItems(state);
+  // Only offer owners who actually own something; a family member with no
+  // jewelry is noise in this filter.
+  const ownerOptions = state.users.filter((u) => candidates.some((i) => i.ownerId === u.id));
+  const visible =
+    owners.length === 0 ? candidates : candidates.filter((i) => owners.includes(i.ownerId));
+
+  function toggleOwner(id: string) {
+    setOwners((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   return (
     <Modal
@@ -260,21 +273,84 @@ function AttachModal({
         </>
       }
     >
-      <div className="-mx-2 max-h-96 divide-y divide-border overflow-y-auto">
-        {candidates.map((item) => (
-          <ItemRow
-            key={item.id}
-            item={item}
-            selectable
-            selected={selected.includes(item.id)}
-            onToggle={() =>
-              setSelected((prev) =>
-                prev.includes(item.id) ? prev.filter((x) => x !== item.id) : [...prev, item.id],
-              )
-            }
+      <div className="mb-3">
+        <p className="mb-2 text-xs font-medium text-muted">{t("event.filterByOwner")}</p>
+        <div className="flex flex-wrap gap-1.5">
+          <OwnerChip
+            label={t("event.ownerAll")}
+            checked={owners.length === 0}
+            onClick={() => setOwners([])}
           />
-        ))}
+          {ownerOptions.map((u) => (
+            <OwnerChip
+              key={u.id}
+              label={u.displayName}
+              count={candidates.filter((i) => i.ownerId === u.id).length}
+              checked={owners.includes(u.id)}
+              onClick={() => toggleOwner(u.id)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="-mx-2 max-h-80 divide-y divide-border overflow-y-auto border-t border-border">
+        {visible.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-muted">{t("event.noneMatchOwner")}</p>
+        ) : (
+          visible.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              selectable
+              selected={selected.includes(item.id)}
+              onToggle={() =>
+                setSelected((prev) =>
+                  prev.includes(item.id) ? prev.filter((x) => x !== item.id) : [...prev, item.id],
+                )
+              }
+            />
+          ))
+        )}
       </div>
     </Modal>
+  );
+}
+
+/** Checkbox-style owner filter pill. */
+function OwnerChip({
+  label,
+  count,
+  checked,
+  onClick,
+}: {
+  label: string;
+  count?: number;
+  checked: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      role="checkbox"
+      aria-checked={checked}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        checked
+          ? "border-gold bg-gold-soft text-gold-deep"
+          : "border-border bg-surface text-muted hover:text-text",
+      )}
+    >
+      <span
+        className={cn(
+          "flex size-3.5 shrink-0 items-center justify-center rounded-sm border",
+          checked ? "border-gold bg-gold text-white" : "border-border",
+        )}
+      >
+        {checked ? <Check className="size-2.5" strokeWidth={3} /> : null}
+      </span>
+      {label}
+      {count != null ? <span className="text-muted">{count}</span> : null}
+    </button>
   );
 }

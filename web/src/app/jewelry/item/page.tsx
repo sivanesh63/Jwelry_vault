@@ -26,7 +26,6 @@ import {
   today,
 } from "@/lib/format";
 import {
-  categoryKey,
   docTypeKey,
   movementTypeKey,
   statusKey,
@@ -44,7 +43,15 @@ import {
   LinkButton,
   Modal,
 } from "@/components/ui";
-import { DetailRow, DueBadge, PhotoTile, StatusBadge, useLocationLabel } from "@/components/vault";
+import {
+  DetailRow,
+  DueBadge,
+  PhotoTile,
+  StatusBadge,
+  useCategoryLabel,
+  useLocationLabel,
+  useShowPrices,
+} from "@/components/vault";
 
 export default function JewelryDetailPage() {
   const t = useT();
@@ -61,6 +68,8 @@ function JewelryDetail() {
   const t = useT();
   const purity = usePurity();
   const locationLabel = useLocationLabel();
+  const categoryLabel = useCategoryLabel();
+  const showPrices = useShowPrices();
   const {
     state,
     itemById,
@@ -123,13 +132,20 @@ function JewelryDetail() {
             <DueBadge item={item} />
           </div>
           <p className="mt-1 text-sm text-muted">
-            {t(categoryKey(item.category))} · {purity(item.purity)} ·{" "}
-            {formatWeight(item.grossWeight)}
+            {categoryLabel(item)} · {purity(item.purity)} · {formatWeight(item.grossWeight)}
           </p>
-          <p className="tabular mt-3 text-2xl font-semibold">{formatMoney(value)}</p>
-          <p className="text-xs text-muted">
-            {t("item.estimatedFrom", { weight: formatWeight(item.netGoldWeight) })}
-          </p>
+          {showPrices ? (
+            <>
+              <p className="tabular mt-3 text-2xl font-semibold">{formatMoney(value)}</p>
+              <p className="text-xs text-muted">
+                {t("item.estimatedFrom", { weight: formatWeight(item.netGoldWeight) })}
+              </p>
+            </>
+          ) : (
+            <p className="tabular mt-3 text-2xl font-semibold">
+              {formatWeight(item.netGoldWeight)}
+            </p>
+          )}
 
           <div className="mt-4 flex flex-wrap gap-2">
             {item.status === "in_locker" ? (
@@ -215,7 +231,9 @@ function JewelryDetail() {
               <DetailRow label={t("item.hallmark")} value={item.hallmarkNo ?? t("common.none")} />
               <DetailRow label={t("item.jeweler")} value={item.jeweler ?? t("common.none")} />
               <DetailRow label={t("item.purchased")} value={formatDate(item.purchaseDate)} />
-              <DetailRow label={t("item.purchasePrice")} value={formatMoney(item.purchasePrice)} />
+              {showPrices ? (
+                <DetailRow label={t("item.purchasePrice")} value={formatMoney(item.purchasePrice)} />
+              ) : null}
             </div>
           </Card>
 

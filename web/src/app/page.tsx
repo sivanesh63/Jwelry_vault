@@ -27,12 +27,14 @@ import {
 } from "@/lib/format";
 import { useRelativeDays, useT } from "@/lib/i18n";
 import { Card, CardHeader, EmptyState, LinkButton } from "@/components/ui";
-import { ItemRow, StatTile } from "@/components/vault";
+import { ItemRow, StatTile, useShowPrices } from "@/components/vault";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { state, userById } = useVault();
   const t = useT();
   const relative = useRelativeDays();
+  const showPrices = useShowPrices();
 
   const items = activeItems(state);
   const overdue = overdueItems(state);
@@ -40,12 +42,16 @@ export default function DashboardPage() {
   const events = upcomingEvents(state);
   const lockerVisits = lockersNeedingVisit(state);
 
-  const totalGold = items.reduce((sum, j) => sum + j.netGoldWeight, 0);
   const totalValue = items.reduce((sum, j) => sum + estimateValue(j, state.settings), 0);
-  const inLocker = items.filter((j) => j.status === "in_locker").length;
+  const secured = items.filter((j) => j.status === "in_locker");
   const away = items.filter(
     (j) => j.status === "with_member" || j.status === "at_jeweler" || j.status === "in_transit",
   );
+
+  // Split rather than totalled: what matters day to day is how much gold is
+  // safe versus how much is out of the locker.
+  const goldInLocker = secured.reduce((sum, j) => sum + j.netGoldWeight, 0);
+  const goldOutside = away.reduce((sum, j) => sum + j.netGoldWeight, 0);
 
   return (
     <>
@@ -53,15 +59,19 @@ export default function DashboardPage() {
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
           {state.settings.familyName}
         </h1>
-        <p className="mt-1 text-sm text-muted">
-          {t("dashboard.goldRate", {
-            rate: t("unit.perGram", { value: formatMoneyShort(state.settings.goldRatePerGram24k) }),
-            when: relative(state.settings.goldRateUpdatedOn, today()),
-          })}{" "}
-          <Link href="/settings/" className="text-gold underline underline-offset-2">
-            {t("common.update")}
-          </Link>
-        </p>
+        {showPrices ? (
+          <p className="mt-1 text-sm text-muted">
+            {t("dashboard.goldRate", {
+              rate: t("unit.perGram", {
+                value: formatMoneyShort(state.settings.goldRatePerGram24k),
+              }),
+              when: relative(state.settings.goldRateUpdatedOn, today()),
+            })}{" "}
+            <Link href="/settings/" className="text-gold underline underline-offset-2">
+              {t("common.update")}
+            </Link>
+          </p>
+        ) : null}
       </div>
 
       {/* Anything demanding action leads, ahead of the headline numbers. */}
@@ -89,34 +99,42 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div
+        className={cn(
+          "mb-4 grid grid-cols-2 gap-3",
+          showPrices ? "lg:grid-cols-4" : "lg:grid-cols-3",
+        )}
+      >
         <StatTile
           label={t("dashboard.totalItems")}
           value={String(items.length)}
-          sub={t("dashboard.archived", { n: state.jewelry.length - items.length })}
+          sub={t("dashboard.splitSub", { n: secured.length, out: away.length })}
           href="/jewelry/"
           icon={<Gem className="size-4" />}
         />
         <StatTile
-          label={t("dashboard.netGold")}
-          value={formatWeight(totalGold)}
-          sub={t("dashboard.excludingStones")}
-          icon={<Coins className="size-4" />}
-        />
-        <StatTile
-          label={t("dashboard.estValue")}
-          value={formatMoneyShort(totalValue)}
-          sub={t("dashboard.atCurrentRate")}
-          icon={<TrendingUp className="size-4" />}
-        />
-        <StatTile
-          label={t("dashboard.outsideLocker")}
-          value={String(away.length)}
-          sub={t("dashboard.secured", { n: inLocker })}
-          tone={away.length > 0 ? "warn" : undefined}
-          href="/movements/"
+          label={t("dashboard.goldInLocker")}
+          value={formatWeight(goldInLocker)}
+          sub={t("dashboard.itemsInLocker", { n: secured.length })}
+          href="/lockers/"
           icon={<Vault className="size-4" />}
         />
+        <StatTile
+          label={t("dashboard.goldOutside")}
+          value={formatWeight(goldOutside)}
+          sub={t("dashboard.itemsInLocker", { n: away.length })}
+          tone={away.length > 0 ? "warn" : undefined}
+          href="/movements/"
+          icon={<Coins className="size-4" />}
+        />
+        {showPrices ? (
+          <StatTile
+            label={t("dashboard.estValue")}
+            value={formatMoneyShort(totalValue)}
+            sub={t("dashboard.atCurrentRate")}
+            icon={<TrendingUp className="size-4" />}
+          />
+        ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -6,7 +6,13 @@ import { activeItems, STATUS_ORDER, useVault } from "@/lib/store";
 import { estimateValue, formatMoneyShort, formatWeight } from "@/lib/format";
 import { categoryKey, statusKey, useT } from "@/lib/i18n";
 import { Card, EmptyState, Input, LinkButton, PageHeader, Select } from "@/components/ui";
-import { CATEGORIES, ItemRow, useLocationLabel } from "@/components/vault";
+import {
+  CATEGORIES,
+  ItemRow,
+  useCategoryLabel,
+  useLocationLabel,
+  useShowPrices,
+} from "@/components/vault";
 import type { ItemStatus, JewelryCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +22,8 @@ export default function JewelryListPage() {
   const { state, userById } = useVault();
   const t = useT();
   const locationLabel = useLocationLabel();
+  const categoryLabel = useCategoryLabel();
+  const showPrices = useShowPrices();
 
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<ItemStatus | "all">("all");
@@ -35,8 +43,9 @@ export default function JewelryListPage() {
       list = list.filter((item) => {
         const haystack = [
           item.name,
-          t(categoryKey(item.category)),
+          categoryLabel(item),
           item.category,
+          item.customCategory ?? "",
           item.hallmarkNo ?? "",
           item.jeweler ?? "",
           item.notes ?? "",
@@ -73,7 +82,7 @@ export default function JewelryListPage() {
         break;
     }
     return sorted;
-  }, [state, query, status, category, holder, sort, locationLabel, userById, t]);
+  }, [state, query, status, category, holder, sort, locationLabel, categoryLabel, userById]);
 
   const totalWeight = items.reduce((s, i) => s + i.grossWeight, 0);
   const totalValue = items.reduce((s, i) => s + estimateValue(i, state.settings), 0);
@@ -83,11 +92,15 @@ export default function JewelryListPage() {
     <>
       <PageHeader
         title={t("jewelry.title")}
-        subtitle={t("jewelry.summary", {
-          count: items.length,
-          weight: formatWeight(totalWeight),
-          value: formatMoneyShort(totalValue),
-        })}
+        subtitle={
+          showPrices
+            ? t("jewelry.summary", {
+                count: items.length,
+                weight: formatWeight(totalWeight),
+                value: formatMoneyShort(totalValue),
+              })
+            : `${items.length} ${t(items.length === 1 ? "common.item" : "common.items")} · ${formatWeight(totalWeight)}`
+        }
         action={
           <LinkButton href="/jewelry/edit/" variant="primary">
             <Plus className="size-4" />
@@ -156,7 +169,7 @@ export default function JewelryListPage() {
             <option value="recent">{t("jewelry.sortRecent")}</option>
             <option value="name">{t("jewelry.sortName")}</option>
             <option value="weight">{t("jewelry.sortWeight")}</option>
-            <option value="value">{t("jewelry.sortValue")}</option>
+            {showPrices ? <option value="value">{t("jewelry.sortValue")}</option> : null}
           </Select>
         </Card>
       ) : null}

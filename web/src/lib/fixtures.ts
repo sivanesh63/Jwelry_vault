@@ -24,6 +24,8 @@ export const seedState: VaultState = {
     currency: "INR",
     dueSoonLeadDays: 3,
     eventReminderLeadDays: 3,
+    // Prices are hidden until deliberately switched on in Settings.
+    showPrices: false,
   },
 
   users: [
@@ -55,6 +57,9 @@ export const seedState: VaultState = {
     { id: "j12", familyId: FAMILY, name: "Wedding Ring Pair", category: "ring", photos: [], grossWeight: 14.8, netGoldWeight: 14.8, stoneWeight: 0, purity: 22, hallmarkNo: "HM-6612-WR", purchaseDate: "2015-02-09", purchasePrice: 44000, jeweler: "Lalitha Jewellery", status: "in_locker", ownerId: "u1", currentLockerId: "l3", isArchived: false, createdAt: ts(-160) },
     { id: "j13", familyId: FAMILY, name: "Jhumka Set", category: "earring", photos: [], grossWeight: 22.4, netGoldWeight: 20.1, stoneWeight: 2.3, purity: 22, purchaseDate: "2021-11-28", purchasePrice: 96000, jeweler: "Saravana Stores", status: "in_transit", ownerId: "u5", isArchived: false, createdAt: ts(-140), notes: "Moving from ICICI to SBI locker." },
     { id: "j14", familyId: FAMILY, name: "Mango Design Necklace", category: "necklace", photos: [], grossWeight: 56.7, netGoldWeight: 51.3, stoneWeight: 5.4, purity: 22, hallmarkNo: "HM-9903-MN", purchaseDate: "2020-03-14", purchasePrice: 244000, jeweler: "Joyalukkas", status: "in_locker", ownerId: "u2", currentLockerId: "l1", isArchived: false, createdAt: ts(-120) },
+    // Uses the free-text category: the fixed list has no word for this, so the
+    // family typed one and it reads that way everywhere.
+    { id: "j15", familyId: FAMILY, name: "Bridal Oddiyanam", category: "other", customCategory: "Oddiyanam", photos: [], grossWeight: 94.5, netGoldWeight: 88.0, stoneWeight: 6.5, purity: 22, hallmarkNo: "HM-4471-OD", purchaseDate: "2019-11-14", purchasePrice: 421000, jeweler: "Saravana Stores", notes: "Waist belt from the bridal set. Store flat.", status: "in_locker", ownerId: "u2", currentLockerId: "l1", isArchived: false, createdAt: ts(-100) },
   ],
 
   movements: [

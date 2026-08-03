@@ -80,6 +80,12 @@ export interface JewelryItem {
   // Descriptive
   name: string;
   category: JewelryCategory;
+  /**
+   * Free-text category name, used only when `category` is "other".
+   * Lets the family record things the fixed list doesn't cover (oddiyanam,
+   * vanki, nose ring) without a schema change every time.
+   */
+  customCategory?: string;
   photos: string[];
   grossWeight: number;
   netGoldWeight: number;
@@ -201,6 +207,15 @@ export interface Settings {
   currency: string;
   dueSoonLeadDays: number;
   eventReminderLeadDays: number;
+  /**
+   * Whether monetary values appear anywhere in the app.
+   *
+   * Off by default. Weights and counts are what the family needs day to day;
+   * valuations are sensitive and are better hidden unless deliberately turned
+   * on. When false, no price, purchase amount or estimated value renders on any
+   * screen, and they are omitted from exports.
+   */
+  showPrices: boolean;
 }
 
 export interface VaultState {

@@ -21,8 +21,14 @@
   --info: #1d4ed8;
 }
 
+/*
+ * Dark palette, applied in two cases:
+ *   1. the OS asks for dark AND the user has not forced light
+ *   2. the user has explicitly chosen dark
+ * `data-theme` is set by ThemeProvider; its absence means "follow the OS".
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #131211;
     --surface: #1c1a18;
     --surface-2: #24211e;
@@ -37,6 +43,22 @@
     --danger: #f87171;
     --info: #93b4fd;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #131211;
+  --surface: #1c1a18;
+  --surface-2: #24211e;
+  --border: #35312c;
+  --text: #f5f1eb;
+  --muted: #a8a29e;
+  --gold: #e0b33c;
+  --gold-deep: #f0cc6b;
+  --gold-soft: #2a2417;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --info: #93b4fd;
 }
 
 @theme inline {

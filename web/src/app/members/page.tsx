@@ -17,11 +17,14 @@ import {
   PageHeader,
   Select,
 } from "@/components/ui";
+import { useShowPrices } from "@/components/vault";
+import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/types";
 
 export default function MembersPage() {
   const { state, currentUser, inviteMember, deactivateMember } = useVault();
   const t = useT();
+  const showPrices = useShowPrices();
   const [inviting, setInviting] = useState(false);
 
   const isAdmin = currentUser.role === "admin";
@@ -86,7 +89,12 @@ export default function MembersPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 border-t border-border px-4 py-3 text-center">
+              <div
+                className={cn(
+                  "grid gap-2 border-t border-border px-4 py-3 text-center",
+                  showPrices ? "grid-cols-3" : "grid-cols-2",
+                )}
+              >
                 <div>
                   <p className="tabular text-lg font-semibold">{owned.length}</p>
                   <p className="text-xs text-muted">{t("members.owns")}</p>
@@ -95,10 +103,12 @@ export default function MembersPage() {
                   <p className="tabular text-lg font-semibold">{holding.length}</p>
                   <p className="text-xs text-muted">{t("members.holding")}</p>
                 </div>
-                <div>
-                  <p className="tabular text-lg font-semibold">{formatMoneyShort(ownedValue)}</p>
-                  <p className="text-xs text-muted">{t("members.ownedValue")}</p>
-                </div>
+                {showPrices ? (
+                  <div>
+                    <p className="tabular text-lg font-semibold">{formatMoneyShort(ownedValue)}</p>
+                    <p className="text-xs text-muted">{t("members.ownedValue")}</p>
+                  </div>
+                ) : null}
               </div>
 
               {holding.length > 0 ? (
