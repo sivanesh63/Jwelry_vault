@@ -6,8 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ImagePlus, Loader2, ScanLine, Sparkles, X } from "lucide-react";
 import { useVault } from "@/lib/store";
 import { useKeyVault } from "@/lib/keyvault";
-import { uploadPhoto, usePhotoUrl } from "@/lib/photos";
-import { estimateValue, formatMoney, today } from "@/lib/format";
+import { uploadPhoto, usePhotoUrl, type UploadedPhoto } from "@/lib/photos";
+import { estimateValue, formatBytes, formatMoney, today } from "@/lib/format";
 import { categoryKey, usePurity, useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, Field, Input, Select, Textarea } from "@/components/ui";
 import { CATEGORIES, useShowPrices } from "@/components/vault";
@@ -22,28 +22,46 @@ import type { JewelryCategory, JewelryItem } from "@/lib/types";
  * few hundred kilobytes — cheaper than a member being unable to correct a
  * mistake, or a delete racing a save and losing a photo that is still listed.
  */
-function PhotoThumb({ path, onRemove }: { path: string; onRemove: () => void }) {
+function PhotoThumb({
+  path,
+  saving,
+  onRemove,
+}: {
+  path: string;
+  saving?: UploadedPhoto;
+  onRemove: () => void;
+}) {
   const t = useT();
   const { url, error } = usePhotoUrl(path);
   return (
-    <div className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-2">
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" className="size-full object-cover" />
-      ) : (
-        <span className="flex size-full items-center justify-center text-xs text-muted">
-          {error ? "!" : <Loader2 className="size-4 animate-spin" />}
-        </span>
-      )}
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={t("edit.removePhoto")}
-        className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white"
-      >
-        <X className="size-3.5" />
-      </button>
-    </div>
+    <figure className="shrink-0">
+      <div className="relative size-24 overflow-hidden rounded-lg border border-border bg-surface-2">
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="size-full object-cover" />
+        ) : (
+          <span className="flex size-full items-center justify-center text-xs text-muted">
+            {error ? "!" : <Loader2 className="size-4 animate-spin" />}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={t("edit.removePhoto")}
+          className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      {saving ? (
+        <figcaption className="mt-1 w-24 text-center text-[11px] leading-tight text-muted">
+          {t("edit.compressed", {
+            from: formatBytes(saving.originalBytes),
+            to: formatBytes(saving.storedBytes),
+          })}
+        </figcaption>
+      ) : null}
+    </figure>
   );
 }
 
@@ -90,6 +108,7 @@ function EditJewelry() {
   const [scanned, setScanned] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [savings, setSavings] = useState<Record<string, UploadedPhoto>>({});
   const { key: vaultKey } = useKeyVault();
 
   function set<K extends keyof JewelryItem>(key: K, value: JewelryItem[K]) {
@@ -114,7 +133,7 @@ function EditJewelry() {
     setPhotoError(null);
 
     const itemId = form.id || newId();
-    const added: string[] = [];
+    const added: UploadedPhoto[] = [];
     try {
       for (const file of files) {
         added.push(await uploadPhoto(vaultKey, state.settings.familyId, itemId, file));
@@ -126,7 +145,22 @@ function EditJewelry() {
       setPhotoError(e instanceof Error ? e.message : String(e));
     } finally {
       if (added.length > 0) {
-        setForm((f) => ({ ...f, id: itemId, photos: [...f.photos, ...added] }));
+        setForm((f) => ({
+          ...f,
+          id: itemId,
+          photos: [...f.photos, ...added.map((p) => p.path)],
+          photoSizes: {
+            ...f.photoSizes,
+            ...Object.fromEntries(added.map((p) => [p.path, p.storedBytes])),
+          },
+        }));
+        // Shown only for photos added in this sitting. Re-opening an item to
+        // find "5.2 MB → 384 KB" against something uploaded last month would be
+        // noise; the number that stays useful is the total in Settings.
+        setSavings((s) => ({
+          ...s,
+          ...Object.fromEntries(added.map((p) => [p.path, p])),
+        }));
       }
       setUploading(false);
     }
@@ -186,8 +220,20 @@ function EditJewelry() {
                   <PhotoThumb
                     key={path}
                     path={path}
+                    saving={savings[path]}
                     onRemove={() =>
-                      set("photos", form.photos.filter((p) => p !== path))
+                      setForm((f) => {
+                        const sizes = { ...f.photoSizes };
+                        // Dropped alongside the path, or the storage total in
+                        // Settings would keep counting a photo the item no
+                        // longer has.
+                        delete sizes[path];
+                        return {
+                          ...f,
+                          photos: f.photos.filter((p) => p !== path),
+                          photoSizes: sizes,
+                        };
+                      })
                     }
                   />
                 ))}

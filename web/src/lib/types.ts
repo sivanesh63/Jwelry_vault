@@ -87,6 +87,15 @@ export interface JewelryItem {
    */
   customCategory?: string;
   photos: string[];
+  /**
+   * Stored size of each photo, in bytes, keyed by its storage path.
+   *
+   * Kept here rather than asked of Supabase because there is no client API for
+   * "how big is this bucket" — the alternative is one list call per item, which
+   * for a real vault is a hundred round trips to render one number. Recorded at
+   * upload, when the size is already in hand.
+   */
+  photoSizes?: Record<string, number>;
   grossWeight: number;
   netGoldWeight: number;
   stoneWeight: number;

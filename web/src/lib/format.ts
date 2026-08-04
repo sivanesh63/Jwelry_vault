@@ -104,6 +104,22 @@ export const STATUS_TONE: Record<ItemStatus, string> = {
   lost: "bg-danger/10 text-danger border-danger/30",
 };
 
+/**
+ * A file size a person can read: "384 KB", "5.2 MB".
+ *
+ * Decimal units, not binary. Cloudflare, Supabase and every phone's photo
+ * gallery quote decimal MB, so matching them keeps "384 KB" here from
+ * disagreeing with "384 KB" everywhere else the user might check.
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1000) return `${Math.round(bytes)} B`;
+  const kb = bytes / 1000;
+  if (kb < 1000) return `${Math.round(kb)} KB`;
+  const mb = kb / 1000;
+  if (mb < 1000) return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+  return `${(mb / 1000).toFixed(2)} GB`;
+}
+
 export function initialsOf(name: string): string {
   return name
     .split(/\s+/)

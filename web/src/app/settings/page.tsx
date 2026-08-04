@@ -16,10 +16,13 @@ import {
 } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
 import { useKeyVault, type DeviceSummary } from "@/lib/keyvault";
-import { estimateValue, formatDate, formatMoney, formatMoneyShort } from "@/lib/format";
+import { estimateValue, formatBytes, formatDate, formatMoney, formatMoneyShort } from "@/lib/format";
 import { LANG_LABEL, useI18n, type Lang, type MessageKey } from "@/lib/i18n";
 import { useTheme, type Theme } from "@/lib/theme";
-import { Button, Card, CardHeader, Field, Input, PageHeader } from "@/components/ui";
+import { Button, Card, CardHeader, Field, Input, Meter, PageHeader } from "@/components/ui";
+
+/** Supabase's free Storage allowance, in decimal bytes as they quote it. */
+const FREE_TIER_BYTES = 1_000_000_000;
 import { cn } from "@/lib/utils";
 
 const THEMES: { value: Theme; label: MessageKey; icon: typeof Sun }[] = [
@@ -41,6 +44,21 @@ export default function SettingsPage() {
 
   const items = activeItems(state);
   const totalValue = items.reduce((s, i) => s + estimateValue(i, state.settings), 0);
+
+  // Summed from sizes recorded at upload. Supabase has no client-side "how big
+  // is this bucket" call, and the alternative — one list request per item — is
+  // a hundred round trips to render one number.
+  const storage = state.jewelry.reduce(
+    (acc, item) => {
+      const sizes = Object.values(item.photoSizes ?? {});
+      return {
+        bytes: acc.bytes + sizes.reduce((n, b) => n + b, 0),
+        photos: acc.photos + item.photos.length,
+        items: acc.items + (item.photos.length > 0 ? 1 : 0),
+      };
+    },
+    { bytes: 0, photos: 0, items: 0 },
+  );
   const previewValue = items.reduce(
     (s, i) => s + estimateValue(i, { ...state.settings, goldRatePerGram24k: Number(rate) || 0 }),
     0,
@@ -293,6 +311,41 @@ export default function SettingsPage() {
                 {t("settings.downloadCsv")}
               </Button>
               <p className="pt-1 text-xs text-muted">{t("settings.exportNote")}</p>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title={t("settings.storage")} description={t("settings.storageDesc")} />
+            <div className="space-y-3 p-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-lg font-semibold tabular-nums">
+                  {t("settings.storageUsed", {
+                    used: formatBytes(storage.bytes),
+                    total: formatBytes(FREE_TIER_BYTES),
+                  })}
+                </span>
+                <span className="text-sm text-muted">
+                  {t("settings.storagePhotos", { n: storage.photos, items: storage.items })}
+                </span>
+              </div>
+
+              <Meter value={storage.bytes} max={FREE_TIER_BYTES} />
+
+              {/*
+                Headroom in photos, not in megabytes. "812 MB free" needs
+                arithmetic before it answers the only question anyone has, which
+                is whether there is room to keep going.
+              */}
+              {storage.photos > 0 ? (
+                <p className="text-sm text-muted">
+                  {t("settings.storageRoom", {
+                    n: Math.max(
+                      0,
+                      Math.floor((FREE_TIER_BYTES - storage.bytes) / (storage.bytes / storage.photos)),
+                    ).toLocaleString(),
+                  })}
+                </p>
+              ) : null}
             </div>
           </Card>
 

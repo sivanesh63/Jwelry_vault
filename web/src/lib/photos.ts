@@ -76,17 +76,35 @@ async function upload(
  * envelope is bound to the path — which is why the edit screen mints an id on
  * the first photo rather than at save time.
  */
+export interface UploadedPhoto {
+  path: string;
+  /** What came off the camera. */
+  originalBytes: number;
+  /** What is actually stored, envelope included. */
+  storedBytes: number;
+}
+
 export async function uploadPhoto(
   key: VaultKey,
   familyId: string,
   jewelryId: string,
   file: File,
-): Promise<string> {
+): Promise<UploadedPhoto> {
   const image = await prepareImage(file);
   const path = `${familyId}/${jewelryId}/${crypto.randomUUID()}.${extensionFor(image.type)}`;
   await upload(PHOTO_BUCKET, key, path, image.bytes);
-  return path;
+  return {
+    path,
+    originalBytes: file.size,
+    // ENVELOPE_OVERHEAD, not image.bytes.length: what counts against the
+    // storage quota is the sealed object, and quoting the plaintext size would
+    // make the total quietly wrong.
+    storedBytes: image.bytes.length + ENVELOPE_OVERHEAD,
+  };
 }
+
+/** Version byte + 12-byte IV + 16-byte GCM tag. See the envelope in crypto.ts. */
+const ENVELOPE_OVERHEAD = 1 + 12 + 16;
 
 export async function uploadDocument(
   key: VaultKey,

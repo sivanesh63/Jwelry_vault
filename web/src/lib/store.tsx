@@ -73,9 +73,9 @@ type MovementEnc = { reason?: string; jeweler?: string };
 type JewelryEnc = Partial<
   Pick<
     JewelryItem,
-    | "name" | "category" | "customCategory" | "photos" | "grossWeight" | "netGoldWeight"
-    | "stoneWeight" | "purity" | "hallmarkNo" | "purchaseDate" | "purchasePrice"
-    | "jeweler" | "notes"
+    | "name" | "category" | "customCategory" | "photos" | "photoSizes" | "grossWeight"
+    | "netGoldWeight" | "stoneWeight" | "purity" | "hallmarkNo" | "purchaseDate"
+    | "purchasePrice" | "jeweler" | "notes"
   >
 >;
 
@@ -262,6 +262,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           category: e.category ?? "other",
           customCategory: e.customCategory,
           photos: e.photos ?? [],
+          photoSizes: e.photoSizes,
           grossWeight: e.grossWeight ?? 0,
           netGoldWeight: e.netGoldWeight ?? 0,
           stoneWeight: e.stoneWeight ?? 0,
@@ -599,6 +600,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
             category: item.category,
             customCategory: item.customCategory,
             photos: item.photos,
+            photoSizes: item.photoSizes,
             grossWeight: item.grossWeight,
             netGoldWeight: item.netGoldWeight,
             stoneWeight: item.stoneWeight,
