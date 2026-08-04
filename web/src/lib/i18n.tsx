@@ -577,6 +577,80 @@ const en = {
   "onboarding.openVault": "Open the vault",
   "onboarding.skip": "Skip for now",
 
+  // ---- Vault key, unlock and recovery ----
+  "vault.loading": "Opening the vault…",
+  "vault.notConfiguredTitle": "Not connected",
+  "vault.notConfiguredBody":
+    "This build has no database configured. Set the Supabase URL and key in Cloudflare Pages, then redeploy.",
+
+  "vault.createTitle": "Create your family vault",
+  "vault.createBody":
+    "This makes the key that encrypts everything in the vault. It is generated on this device and never sent to the server.",
+  "vault.familyName": "Family name",
+  "vault.yourName": "Your name",
+  "vault.passphrase": "Passphrase",
+  "vault.passphraseAgain": "Repeat passphrase",
+  "vault.passphraseHelp":
+    "Long, and used nowhere else. Nothing rate-limits an attack on this one, so length matters more than symbols.",
+  "vault.passphraseShort": "Use at least 12 characters",
+  "vault.passphraseMismatch": "The two passphrases do not match",
+  "vault.createCta": "Create the vault",
+
+  "vault.recoveryTitle": "Write this down now",
+  "vault.recoveryBody":
+    "The only way back in if everyone forgets their passphrase. It will not be shown again.",
+  "vault.recoveryWhere":
+    "Print it and keep it in the bank locker. Not in a photo, and not in a note on the phone that opens this app.",
+  "vault.recoveryPrint": "Print",
+  "vault.recoveryCopy": "Copy",
+  "vault.recoveryCopied": "Copied",
+  "vault.recoveryConfirm": "I have written it down and stored it safely",
+  "vault.recoveryContinue": "Open the vault",
+
+  "vault.unlockTitle": "Unlock",
+  "vault.unlockBody": "Your PIN decrypts the vault on this device.",
+  "vault.pinPrompt": "6-digit PIN",
+  "vault.unlockCta": "Unlock",
+  "vault.usePassphrase": "Use passphrase instead",
+  "vault.usePin": "Use PIN instead",
+  "vault.useRecovery": "Use the recovery key",
+  "vault.recoveryPrompt": "Recovery key",
+  "vault.wrongPin": "Wrong PIN",
+  "vault.wrongPassphrase": "Wrong passphrase",
+  "vault.deviceLocked": "Too many wrong PINs. Wait, or unlock with your passphrase.",
+
+  "vault.enrolTitle": "Choose your passphrase",
+  "vault.enrolBody":
+    "This protects your personal key. An admin still has to let you into the vault afterwards.",
+  "vault.enrolCta": "Save passphrase",
+
+  "vault.awaitingTitle": "Waiting to be let in",
+  "vault.awaitingBody":
+    "Your key is registered. An admin has to admit you before anything is readable — the vault is not empty, and this is not an error.",
+  "vault.awaitingRefresh": "Check again",
+
+  "vault.pinTitle": "Set a PIN for this device",
+  "vault.pinBody":
+    "So you are not typing the passphrase every time. Five wrong PINs lock this device; ten remove it.",
+  "vault.pinDeviceName": "Device name",
+  "vault.pinDeviceNamePlaceholder": "Amma's phone",
+  "vault.pinAgain": "Repeat PIN",
+  "vault.pinMismatch": "The two PINs do not match",
+  "vault.pinWeak": "Not a run of digits or six of the same one",
+  "vault.pinCta": "Set PIN",
+  "vault.pinSkip": "Not now",
+
+  "vault.devices": "Your devices",
+  "vault.deviceRemove": "Remove",
+  "vault.deviceNever": "Never used",
+  "vault.deviceLastUsed": "Last used {when}",
+  "vault.deviceLockedUntil": "Locked until {when}",
+  "vault.deviceNone": "No PIN set on any device yet.",
+
+  "vault.lock": "Lock the vault",
+  "vault.signOut": "Sign out",
+  "vault.locked": "Locked",
+
   // ---- Badges ----
   "badge.overdueDays": "Overdue {n}d",
   "badge.due": "Due {when}",
@@ -1129,6 +1203,81 @@ const ta: Record<MessageKey, string> = {
   "onboarding.step3Cta": "அறிவிப்புகளை அனுமதி",
   "onboarding.openVault": "பெட்டகத்தைத் திற",
   "onboarding.skip": "இப்போதைக்குத் தவிர்",
+
+  // ---- Vault key, unlock and recovery ----
+  "vault.loading": "பெட்டகம் திறக்கப்படுகிறது…",
+  "vault.notConfiguredTitle": "இணைப்பு இல்லை",
+  "vault.notConfiguredBody":
+    "இந்தப் பதிப்புக்கு தரவுத்தளம் அமைக்கப்படவில்லை. Cloudflare Pages-இல் Supabase URL மற்றும் விசையை அமைத்து மீண்டும் வெளியிடுங்கள்.",
+
+  "vault.createTitle": "உங்கள் குடும்பப் பெட்டகத்தை உருவாக்குங்கள்",
+  "vault.createBody":
+    "பெட்டகத்தில் உள்ள அனைத்தையும் மறையாக்கும் விசை இப்போது உருவாகும். இது இந்தச் சாதனத்திலேயே உருவாகிறது, சேவையகத்திற்கு ஒருபோதும் அனுப்பப்படுவதில்லை.",
+  "vault.familyName": "குடும்பப் பெயர்",
+  "vault.yourName": "உங்கள் பெயர்",
+  "vault.passphrase": "கடவுத்தொடர்",
+  "vault.passphraseAgain": "கடவுத்தொடரை மீண்டும் உள்ளிடுங்கள்",
+  "vault.passphraseHelp":
+    "நீளமாகவும், வேறு எங்கும் பயன்படுத்தாததாகவும் இருக்கட்டும். இதைத் தாக்குபவரை எதுவும் தடுப்பதில்லை, எனவே சிறப்பு எழுத்துகளை விட நீளமே முக்கியம்.",
+  "vault.passphraseShort": "குறைந்தது 12 எழுத்துகள் வேண்டும்",
+  "vault.passphraseMismatch": "இரண்டு கடவுத்தொடர்களும் ஒன்றல்ல",
+  "vault.createCta": "பெட்டகத்தை உருவாக்கு",
+
+  "vault.recoveryTitle": "இதை இப்போதே எழுதி வையுங்கள்",
+  "vault.recoveryBody":
+    "எல்லோரும் கடவுத்தொடரை மறந்தால் பெட்டகத்திற்குள் திரும்ப வர இதுவே ஒரே வழி. இது மீண்டும் காட்டப்படாது.",
+  "vault.recoveryWhere":
+    "அச்சிட்டு வங்கிப் பெட்டகத்தில் வையுங்கள். புகைப்படமாகவோ, இந்தச் செயலியைத் திறக்கும் தொலைபேசியின் குறிப்பிலோ வைக்க வேண்டாம்.",
+  "vault.recoveryPrint": "அச்சிடு",
+  "vault.recoveryCopy": "நகலெடு",
+  "vault.recoveryCopied": "நகலெடுக்கப்பட்டது",
+  "vault.recoveryConfirm": "எழுதி பத்திரமாக வைத்துவிட்டேன்",
+  "vault.recoveryContinue": "பெட்டகத்தைத் திற",
+
+  "vault.unlockTitle": "திறக்கவும்",
+  "vault.unlockBody": "இந்தச் சாதனத்தில் உங்கள் PIN பெட்டகத்தை மறைநீக்கும்.",
+  "vault.pinPrompt": "6 இலக்க PIN",
+  "vault.unlockCta": "திற",
+  "vault.usePassphrase": "கடவுத்தொடரைப் பயன்படுத்து",
+  "vault.usePin": "PIN-ஐப் பயன்படுத்து",
+  "vault.useRecovery": "மீட்பு விசையைப் பயன்படுத்து",
+  "vault.recoveryPrompt": "மீட்பு விசை",
+  "vault.wrongPin": "தவறான PIN",
+  "vault.wrongPassphrase": "தவறான கடவுத்தொடர்",
+  "vault.deviceLocked":
+    "பலமுறை தவறான PIN. சிறிது நேரம் காத்திருங்கள், அல்லது கடவுத்தொடரால் திறங்கள்.",
+
+  "vault.enrolTitle": "உங்கள் கடவுத்தொடரைத் தேர்ந்தெடுங்கள்",
+  "vault.enrolBody":
+    "இது உங்கள் தனிப்பட்ட விசையைப் பாதுகாக்கும். அதன் பிறகு நிர்வாகி உங்களைப் பெட்டகத்தில் சேர்க்க வேண்டும்.",
+  "vault.enrolCta": "கடவுத்தொடரைச் சேமி",
+
+  "vault.awaitingTitle": "அனுமதிக்காகக் காத்திருக்கிறது",
+  "vault.awaitingBody":
+    "உங்கள் விசை பதிவாகிவிட்டது. நிர்வாகி உங்களைச் சேர்த்த பிறகே எதுவும் தெரியும் — பெட்டகம் காலியாக இல்லை, இது பிழையும் அல்ல.",
+  "vault.awaitingRefresh": "மீண்டும் பார்",
+
+  "vault.pinTitle": "இந்தச் சாதனத்திற்கு PIN அமைக்கவும்",
+  "vault.pinBody":
+    "ஒவ்வொரு முறையும் கடவுத்தொடரைத் தட்டச்சு செய்யத் தேவையில்லை. ஐந்து தவறான PIN இந்தச் சாதனத்தைப் பூட்டும்; பத்து அதை நீக்கும்.",
+  "vault.pinDeviceName": "சாதனப் பெயர்",
+  "vault.pinDeviceNamePlaceholder": "அம்மாவின் தொலைபேசி",
+  "vault.pinAgain": "PIN-ஐ மீண்டும் உள்ளிடுங்கள்",
+  "vault.pinMismatch": "இரண்டு PIN-களும் ஒன்றல்ல",
+  "vault.pinWeak": "வரிசையான இலக்கங்களோ ஒரே இலக்கம் ஆறு முறையோ வேண்டாம்",
+  "vault.pinCta": "PIN அமை",
+  "vault.pinSkip": "இப்போது வேண்டாம்",
+
+  "vault.devices": "உங்கள் சாதனங்கள்",
+  "vault.deviceRemove": "நீக்கு",
+  "vault.deviceNever": "பயன்படுத்தப்படவில்லை",
+  "vault.deviceLastUsed": "கடைசியாக {when}",
+  "vault.deviceLockedUntil": "{when} வரை பூட்டப்பட்டுள்ளது",
+  "vault.deviceNone": "எந்தச் சாதனத்திலும் இன்னும் PIN அமைக்கப்படவில்லை.",
+
+  "vault.lock": "பெட்டகத்தைப் பூட்டு",
+  "vault.signOut": "வெளியேறு",
+  "vault.locked": "பூட்டப்பட்டுள்ளது",
 
   // ---- Badges ----
   "badge.overdueDays": "{n} நாள் தாமதம்",

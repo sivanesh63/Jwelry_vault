@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { VaultProvider } from "@/lib/store";
+import { KeyVaultProvider } from "@/lib/keyvault";
 import { LanguageProvider } from "@/lib/i18n";
 import { ThemeProvider } from "@/lib/theme";
 import { AppShell } from "@/components/app-shell";
+import { VaultGate } from "@/components/vault-gate";
 
 // No next/font here on purpose: webfonts are fetched at build time, and this
 // project should build offline. globals.css falls back to the system UI stack,
@@ -40,9 +42,19 @@ export default function RootLayout({
       <body className="min-h-full antialiased">
         <ThemeProvider>
           <LanguageProvider>
-            <VaultProvider>
-              <AppShell>{children}</AppShell>
-            </VaultProvider>
+            {/*
+              The gate sits outside AppShell, not inside it. Sign-in and unlock
+              should not render navigation to screens that cannot load, and
+              nothing below the gate ever has to ask whether the key is
+              available — if it is rendering, the vault is open.
+            */}
+            <KeyVaultProvider>
+              <VaultGate>
+                <VaultProvider>
+                  <AppShell>{children}</AppShell>
+                </VaultProvider>
+              </VaultGate>
+            </KeyVaultProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>
