@@ -1,5 +1,36 @@
 import type { NextConfig } from "next";
 
+/**
+ * Refuse to build a CI deploy that cannot reach the database.
+ *
+ * NEXT_PUBLIC_* values are compiled into the JavaScript at build time. In a
+ * static export there is no runtime to read them later, so a build that starts
+ * without them produces a site that can never sign anyone in — and it produces
+ * it silently, with a green tick in the deploy log.
+ *
+ * That already happened once: the variables were set under Cloudflare's runtime
+ * "Variables and secrets" rather than under Build, which does nothing for a site
+ * with no Functions. Nothing failed; the app just deployed unable to connect.
+ * This turns that into a red build with the reason in it.
+ *
+ * Only on CI. Local `next build` without a .env.local stays useful for checking
+ * that the export still compiles.
+ */
+const isCI = Boolean(process.env.CF_PAGES ?? process.env.CI);
+const missing = [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+].filter((name) => !process.env[name]);
+
+if (isCI && missing.length > 0) {
+  throw new Error(
+    `Missing at build time: ${missing.join(", ")}.\n\n` +
+      `In Cloudflare these belong under Settings -> Build -> Variables and secrets, ` +
+      `for BOTH Production and Preview. The top-level "Variables and secrets" section ` +
+      `is runtime-only and has no effect on a static export.`,
+  );
+}
+
 const nextConfig: NextConfig = {
   // Static export: the whole app ships as plain HTML/CSS/JS to Cloudflare Pages.
   // No Node server, no cold starts, no hosting cost.
