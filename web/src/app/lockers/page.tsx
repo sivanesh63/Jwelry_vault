@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Building2, CheckCircle2, Home, Plus, ShieldAlert } from "lucide-react";
 import { activeItems, lockersNeedingVisit, useVault } from "@/lib/store";
+import { useKeyVault } from "@/lib/keyvault";
 import { daysBetween, estimateValue, formatMoneyShort, formatWeight, today } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import {
@@ -23,6 +24,7 @@ import type { Locker } from "@/lib/types";
 
 export default function LockersPage() {
   const { state, userById, recordLockerVisit, saveLocker } = useVault();
+  const { isAdmin } = useKeyVault();
   const t = useT();
   const showPrices = useShowPrices();
   const [editing, setEditing] = useState<Locker | null>(null);
@@ -48,10 +50,15 @@ export default function LockersPage() {
         title={t("lockers.title")}
         subtitle={t("lockers.subtitle", { count: state.lockers.length, items: totalItems })}
         action={
-          <Button variant="primary" onClick={() => setEditing(blankLocker())}>
-            <Plus className="size-4" />
-            {t("common.add")}
-          </Button>
+          // Configuring lockers is admin-only. Recording a visit is not — that
+          // is the chore worth spreading around, and it is the whole point of
+          // the reminder.
+          isAdmin ? (
+            <Button variant="primary" onClick={() => setEditing(blankLocker())}>
+              <Plus className="size-4" />
+              {t("common.add")}
+            </Button>
+          ) : null
         }
       />
 
@@ -82,13 +89,15 @@ export default function LockersPage() {
                   [locker.branch, locker.lockerNumber].filter(Boolean).join(" · ") || undefined
                 }
                 action={
-                  <button
-                    type="button"
-                    onClick={() => setEditing(locker)}
-                    className="text-sm text-gold hover:underline"
-                  >
-                    {t("common.edit")}
-                  </button>
+                  isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditing(locker)}
+                      className="text-sm text-gold hover:underline"
+                    >
+                      {t("common.edit")}
+                    </button>
+                  ) : null
                 }
               />
 

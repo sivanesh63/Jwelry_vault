@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Plus, Search, SlidersHorizontal } from "lucide-react";
 import { activeItems, STATUS_ORDER, useVault } from "@/lib/store";
+import { useKeyVault } from "@/lib/keyvault";
 import { estimateValue, formatMoneyShort, formatWeight } from "@/lib/format";
 import { categoryKey, statusKey, useT } from "@/lib/i18n";
 import { Card, EmptyState, Input, LinkButton, PageHeader, Select } from "@/components/ui";
@@ -20,6 +21,7 @@ type SortKey = "name" | "weight" | "value" | "recent";
 
 export default function JewelryListPage() {
   const { state, userById } = useVault();
+  const { isAdmin } = useKeyVault();
   const t = useT();
   const locationLabel = useLocationLabel();
   const categoryLabel = useCategoryLabel();
@@ -102,10 +104,16 @@ export default function JewelryListPage() {
             : `${items.length} ${t(items.length === 1 ? "common.item" : "common.items")} · ${formatWeight(totalWeight)}`
         }
         action={
+          // Adding jewelry is admin-only in 0002_rls.sql. Showing the button to
+          // everyone means a member fills in the whole form and then meets a
+          // Postgres policy violation on save — the work is lost and the
+          // message explains nothing they can act on.
+          !isAdmin ? null : (
           <LinkButton href="/jewelry/edit/" variant="primary">
             <Plus className="size-4" />
             {t("common.add")}
           </LinkButton>
+          )
         }
       />
 
@@ -197,9 +205,11 @@ export default function JewelryListPage() {
             title={t("jewelry.noMatch")}
             description={t("jewelry.noMatchDesc")}
             action={
-              <LinkButton href="/jewelry/edit/" variant="primary" size="sm">
-                {t("jewelry.addItem")}
-              </LinkButton>
+              isAdmin ? (
+                <LinkButton href="/jewelry/edit/" variant="primary" size="sm">
+                  {t("jewelry.addItem")}
+                </LinkButton>
+              ) : null
             }
           />
         ) : (
