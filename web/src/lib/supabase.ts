@@ -43,12 +43,44 @@ let client: SupabaseClient | null = null;
  * no password. Sending them straight into the vault would leave an account they
  * can never sign into again once that link expires.
  */
+function urlParams(): URLSearchParams {
+  const merged = new URLSearchParams(window.location.search);
+  for (const [k, v] of new URLSearchParams(window.location.hash.replace(/^#/, ""))) {
+    if (!merged.has(k)) merged.set(k, v);
+  }
+  return merged;
+}
+
 export const arrivedFrom: "invite" | "recovery" | null = (() => {
   if (typeof window === "undefined") return null;
-  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const query = new URLSearchParams(window.location.search);
-  const type = fragment.get("type") ?? query.get("type");
+  const type = urlParams().get("type");
   return type === "invite" || type === "recovery" ? type : null;
+})();
+
+/**
+ * Why an email link failed, if it did.
+ *
+ * Supabase reports a refused link by redirecting back with `error` and
+ * `error_description` in the fragment. Nothing consumes those by default, so
+ * the app simply rendered its sign-in form — and somebody who has never had a
+ * password is then staring at a password field with no explanation, which is
+ * exactly what happened here.
+ *
+ * The common case is not a bug at all: invite links are single-use, so opening
+ * one twice fails the second time. That is worth saying in words rather than
+ * leaving somebody to conclude the app is broken.
+ */
+export const linkError: string | null = (() => {
+  if (typeof window === "undefined") return null;
+  const params = urlParams();
+  const code = params.get("error_code") ?? params.get("error");
+  if (!code) return null;
+
+  const described = params.get("error_description")?.replace(/\+/g, " ") ?? code;
+  if (/expired|invalid|not_found|otp/i.test(code + described)) {
+    return `${described}. Invite and recovery links can only be opened once and expire after a day — ask an admin to send a fresh one.`;
+  }
+  return described;
 })();
 
 /** True when the app has been given a project to talk to. */

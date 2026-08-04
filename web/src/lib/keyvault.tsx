@@ -220,6 +220,9 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [devices, setDevices] = useState<DeviceSummary[]>([]);
   const [localDeviceId, setLocalDeviceId] = useState<string | null>(null);
+  // linkError is deliberately NOT seeded here: refresh() clears this on mount,
+  // which would wipe it before anyone read it. The sign-in screen shows it
+  // straight from the module constant instead, where nothing can clear it.
   const [error, setError] = useState<string | null>(
     isConfigured() ? null : "This build has no database configured.",
   );

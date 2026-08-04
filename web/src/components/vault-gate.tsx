@@ -24,6 +24,7 @@ import {
   Vault,
 } from "lucide-react";
 import { useKeyVault } from "@/lib/keyvault";
+import { linkError } from "@/lib/supabase";
 import { useI18n } from "@/lib/i18n";
 import { Button, Card, Field, Input } from "@/components/ui";
 
@@ -126,7 +127,12 @@ function SignIn() {
               required
             />
           </Field>
-          <Problem message={error ?? vaultError} />
+          {/*
+            linkError first: somebody who followed a dead invite link needs to
+            know that is why they are looking at a password field, and it is the
+            most likely reason anybody lands here confused.
+          */}
+          <Problem message={error ?? linkError ?? vaultError} />
           <Button type="submit" variant="primary" className="w-full" disabled={busy}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : null}
             {t("login.signIn")}
