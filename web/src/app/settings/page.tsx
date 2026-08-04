@@ -7,17 +7,19 @@ import {
   EyeOff,
   FileSpreadsheet,
   Languages,
+  LockKeyhole,
   Monitor,
   Moon,
-  RotateCcw,
+  Smartphone,
   Sun,
   TrendingUp,
 } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
+import { useKeyVault, type DeviceSummary } from "@/lib/keyvault";
 import { estimateValue, formatDate, formatMoney, formatMoneyShort } from "@/lib/format";
 import { LANG_LABEL, useI18n, type Lang, type MessageKey } from "@/lib/i18n";
 import { useTheme, type Theme } from "@/lib/theme";
-import { Button, Card, CardHeader, Field, Input, Modal, PageHeader } from "@/components/ui";
+import { Button, Card, CardHeader, Field, Input, PageHeader } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const THEMES: { value: Theme; label: MessageKey; icon: typeof Sun }[] = [
@@ -27,7 +29,8 @@ const THEMES: { value: Theme; label: MessageKey; icon: typeof Sun }[] = [
 ];
 
 export default function SettingsPage() {
-  const { state, updateSettings, resetDemo, currentUser } = useVault();
+  const { state, updateSettings, currentUser } = useVault();
+  const { devices, removeDevice, lock } = useKeyVault();
   const { t, lang, setLang } = useI18n();
   const { theme, setTheme } = useTheme();
   const showPrices = state.settings.showPrices;
@@ -35,7 +38,6 @@ export default function SettingsPage() {
   const [rate, setRate] = useState(String(state.settings.goldRatePerGram24k));
   const [familyName, setFamilyName] = useState(state.settings.familyName);
   const [dueSoon, setDueSoon] = useState(String(state.settings.dueSoonLeadDays));
-  const [resetOpen, setResetOpen] = useState(false);
 
   const items = activeItems(state);
   const totalValue = items.reduce((s, i) => s + estimateValue(i, state.settings), 0);
@@ -294,8 +296,14 @@ export default function SettingsPage() {
             </div>
           </Card>
 
+          {/*
+            This replaced a "reset to sample data" card. That button was safe
+            while the store was fixtures and would now delete a real family's
+            jewelry, so it is gone rather than guarded — the safest destructive
+            button is the one that does not exist.
+          */}
           <Card>
-            <CardHeader title={t("settings.prototype")} description={t("settings.prototypeDesc")} />
+            <CardHeader title={t("vault.devices")} description={t("vault.pinBody")} />
             <div className="space-y-3 p-4">
               <p className="text-sm text-muted">
                 {t("settings.signedInAs", {
@@ -305,38 +313,49 @@ export default function SettingsPage() {
                   ),
                 })}
               </p>
-              <Button variant="danger" onClick={() => setResetOpen(true)}>
-                <RotateCcw className="size-4 shrink-0" />
-                {t("settings.resetDemo")}
+
+              {devices.length === 0 ? (
+                <p className="text-sm text-muted">{t("vault.deviceNone")}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {devices.map((d: DeviceSummary) => (
+                    <li
+                      key={d.id}
+                      className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
+                    >
+                      <Smartphone className="size-4 shrink-0 text-muted" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {d.label || t("vault.pinDeviceNamePlaceholder")}
+                        </span>
+                        <span className="block text-xs text-muted">
+                          {d.lockedUntil
+                            ? t("vault.deviceLockedUntil", { when: d.lockedUntil.slice(0, 10) })
+                            : d.lastUsedAt
+                              ? t("vault.deviceLastUsed", { when: d.lastUsedAt.slice(0, 10) })
+                              : t("vault.deviceNever")}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 text-sm text-danger underline"
+                        onClick={() => void removeDevice(d.id)}
+                      >
+                        {t("vault.deviceRemove")}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <Button onClick={lock}>
+                <LockKeyhole className="size-4 shrink-0" />
+                {t("vault.lock")}
               </Button>
             </div>
           </Card>
         </div>
       </div>
-
-      <Modal
-        open={resetOpen}
-        onClose={() => setResetOpen(false)}
-        title={t("settings.resetTitle")}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setResetOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                resetDemo();
-                setResetOpen(false);
-              }}
-            >
-              {t("common.reset")}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-muted">{t("settings.resetBody")}</p>
-      </Modal>
     </>
   );
 }

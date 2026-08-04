@@ -81,7 +81,7 @@ function EditJewelry() {
     if (!valid) return;
     const saved: JewelryItem = {
       ...form,
-      id: form.id || newId("j"),
+      id: form.id || newId(),
       createdAt: form.createdAt || new Date().toISOString(),
     };
     saveItem(saved);

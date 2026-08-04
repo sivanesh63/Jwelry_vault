@@ -6,15 +6,20 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Generates an entity id.
+ * Generates an entity id, as a real uuid.
  *
- * Lives at module scope, and must only be called from event handlers or effects
- * — never during render, where a fresh value on every pass would be unstable.
- * Postgres will own id generation once Supabase is wired in.
+ * The client generates these rather than letting Postgres default them, because
+ * every encrypted envelope is bound to its row id as additional authenticated
+ * data — so the id has to exist before the record can be sealed. See `aadFor`
+ * in crypto.ts.
+ *
+ * It replaced a prefixed short id ("j-a1b2c3d4"), which read nicely in the
+ * fixture data and would be rejected outright by a `uuid` column.
+ *
+ * Must only be called from event handlers or effects — never during render,
+ * where a fresh value on every pass would be unstable and trips the React
+ * purity rules.
  */
-export function newId(prefix: string): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
-  }
-  return `${prefix}-${Date.now().toString(36)}`;
+export function newId(): string {
+  return crypto.randomUUID();
 }

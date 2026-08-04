@@ -41,7 +41,7 @@ export default function EventsPage() {
             variant="primary"
             onClick={() =>
               setCreating({
-                id: newId("e"),
+                id: newId(),
                 familyId: state.settings.familyId,
                 name: "",
                 startsOn: addDays(today(), 7),

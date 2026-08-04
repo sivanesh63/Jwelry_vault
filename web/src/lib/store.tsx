@@ -1,13 +1,37 @@
 "use client";
 
 /**
- * The prototype's data layer.
+ * The data layer, now talking to Postgres through an envelope.
  *
- * This is deliberately the ONLY module that knows where data comes from.
- * Screens call `useVault()` and never touch storage directly, so replacing this
- * with Supabase queries is a swap of this one file rather than a rewrite of the
- * UI. Mutations mirror the transitions allowed by the item state machine and
- * each one writes an audit entry, exactly as the Postgres version will.
+ * Still the only module that knows where data comes from — screens call
+ * `useVault()` and the interface they see is unchanged from the fixture
+ * version, which is what the original file was built to make possible.
+ *
+ *
+ * READING
+ *
+ * Every table is fetched whole and decrypted in memory. That is not laziness:
+ * the sensitive columns are ciphertext, so Postgres cannot filter, sort or
+ * search on any of them. `where name like '%bangle%'` is not a query that can
+ * exist here. At family scale — hundreds of items, not millions — pulling
+ * everything once and working locally is both simpler and faster than the
+ * round trips a server-side filter would need.
+ *
+ *
+ * WRITING
+ *
+ * Seal, write, reload. The reload is deliberate. Custody changes run as RPCs
+ * that enforce the state machine server-side and may legitimately refuse, so
+ * the only honest source of truth after a mutation is what the database
+ * actually did — a local optimistic edit would be a second implementation of
+ * the same rules, free to drift from the first.
+ *
+ *
+ * AAD
+ *
+ * Every envelope is bound to its row id (see `aadFor`), so ids are generated
+ * here before the write rather than defaulted by Postgres. An envelope moved to
+ * another row fails to open instead of silently describing the wrong necklace.
  */
 
 import {
@@ -19,9 +43,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { seedState } from "./fixtures";
+import { aadFor, open, seal, type VaultKey } from "./crypto";
+import { useKeyVault } from "./keyvault";
+import { decodeBytea, describeConnectionFailure, getSupabase, rpc, toPg } from "./supabase";
 import { addDays, daysBetween, today } from "./format";
-import { newId } from "./utils";
 import type {
   AuditEntry,
   FamilyEvent,
@@ -35,31 +60,86 @@ import type {
   VaultState,
 } from "./types";
 
-const STORAGE_KEY = "jv:state:v1";
+// ---- envelope payloads ------------------------------------------------------
+// One per encrypted column. These mirror the comments in 0006_encryption.sql;
+// if they drift, decryption still succeeds and fields quietly become undefined,
+// so they are worth reading side by side when either changes.
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
+type FamilyEnc = { name?: string };
+type LockerEnc = { name?: string; branch?: string; lockerNumber?: string };
+type EventEnc = { name?: string; location?: string; notes?: string };
+type DocumentEnc = { fileName?: string };
+type MovementEnc = { reason?: string; jeweler?: string };
+type JewelryEnc = Partial<
+  Pick<
+    JewelryItem,
+    | "name" | "category" | "customCategory" | "photos" | "grossWeight" | "netGoldWeight"
+    | "stoneWeight" | "purity" | "hallmarkNo" | "purchaseDate" | "purchasePrice"
+    | "jeweler" | "notes"
+  >
+>;
+
+const EMPTY_SETTINGS: Settings = {
+  familyId: "",
+  familyName: "",
+  goldRatePerGram24k: 0,
+  goldRateUpdatedOn: "",
+  currency: "INR",
+  dueSoonLeadDays: 3,
+  eventReminderLeadDays: 3,
+  showPrices: false,
+};
+
+const EMPTY_STATE: VaultState = {
+  users: [],
+  lockers: [],
+  jewelry: [],
+  movements: [],
+  events: [],
+  documents: [],
+  audit: [],
+  notifications: [],
+  settings: EMPTY_SETTINGS,
+  currentUserId: "",
+};
+
+/**
+ * Stands in for the signed-in member until the first load finishes.
+ *
+ * `currentUser` is non-optional in the interface because every screen leans on
+ * it, and threading `| undefined` through twenty files to cover a few hundred
+ * milliseconds would cost more than it protects. Nothing is rendered from it
+ * before `hydrated` is true.
+ */
+const PLACEHOLDER_USER: User = {
+  id: "",
+  familyId: "",
+  displayName: "",
+  email: "",
+  role: "member",
+  isActive: true,
+  initials: "",
+};
 
 interface VaultContextValue {
   state: VaultState;
-  /** False during the first render pass, before localStorage is read. */
+  /** False until the first decrypt pass completes. */
   hydrated: boolean;
+  /** The last write or read failure, in words meant for a person. */
+  error: string | null;
+  /** True while a mutation is in flight. */
+  busy: boolean;
 
-  // Lookups
   currentUser: User;
   userById: (id?: string) => User | undefined;
   lockerById: (id?: string) => Locker | undefined;
   itemById: (id?: string) => JewelryItem | undefined;
   eventById: (id?: string) => FamilyEvent | undefined;
-  /** Locker name, holder name or jeweler; undefined when in transit or lost. */
   locationOf: (item: JewelryItem) => string | undefined;
-  /** Open (unreturned) movement for an item, if any. */
   openMovementOf: (jewelryId: string) => Movement | undefined;
   movementsOf: (jewelryId: string) => Movement[];
   documentsOf: (jewelryId: string) => VaultDocument[];
 
-  // Mutations
   takeOut: (args: {
     jewelryIds: string[];
     holderId: string;
@@ -84,68 +164,288 @@ interface VaultContextValue {
   updateSettings: (patch: Partial<Settings>) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
-  switchUser: (userId: string) => void;
-  resetDemo: () => void;
+  reload: () => void;
 }
 
 const VaultContext = createContext<VaultContextValue | null>(null);
 
+/** Two initials from a display name, matching `initials_of` in 0005_auth.sql. */
+function initialsOf(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+type Row = Record<string, unknown>;
+
+/** Decrypts a row's envelope, treating a null column as an empty record. */
+async function envelope<T>(key: VaultKey, table: string, row: Row): Promise<T> {
+  const bytes = decodeBytea(row.enc);
+  const value = await open<T>(key, bytes, aadFor(table, row.id as string));
+  return (value ?? {}) as T;
+}
+
 export function VaultProvider({ children }: { children: ReactNode }) {
-  // First render must be deterministic for the statically exported HTML to match,
-  // so we always start from the seed and load persisted state after mount.
-  const [state, setState] = useState<VaultState>(seedState);
+  const { key, memberId, familyId } = useKeyVault();
+  const [state, setState] = useState<VaultState>(EMPTY_STATE);
   const [hydrated, setHydrated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      // Reading localStorage cannot happen during render: the statically exported
-      // HTML is produced at build time with no storage available, so initialising
-      // state from it directly would desync server and client markup. Adopting the
-      // persisted state on mount is the intended pattern, and it runs exactly once.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setState(JSON.parse(raw) as VaultState);
-    } catch {
-      // Corrupt or unavailable storage: fall back to the seed rather than crash.
+  // ---- read ----------------------------------------------------------------
+
+  const load = useCallback(async () => {
+    if (!key || !familyId || !memberId) return;
+    const supabase = getSupabase();
+
+    const [
+      families, members, lockers, jewelry, movements, events, eventItems,
+      documents, audit, notifications,
+    ] = await Promise.all([
+      supabase.from("families").select("*").eq("id", familyId).single(),
+      supabase.from("members").select("*").order("created_at"),
+      supabase.from("lockers").select("*").order("created_at"),
+      supabase.from("jewelry").select("*").order("created_at", { ascending: false }),
+      supabase.from("movements").select("*").order("taken_at", { ascending: false }),
+      supabase.from("events").select("*").order("starts_on", { ascending: false }),
+      supabase.from("event_items").select("*"),
+      supabase.from("documents").select("*").order("uploaded_at", { ascending: false }),
+      supabase.from("audit_logs").select("*").order("at", { ascending: false }).limit(200),
+      supabase.from("notifications").select("*").order("created_at", { ascending: false }),
+    ]);
+
+    for (const r of [families, members, lockers, jewelry, movements, events, eventItems, documents, audit, notifications]) {
+      if (r.error) throw new Error(r.error.message);
     }
+
+    const familyRow = families.data as Row;
+    const familyEnc = await envelope<FamilyEnc>(key, "families", familyRow);
+
+    const users: User[] = ((members.data ?? []) as Row[]).map((m) => ({
+      id: m.id as string,
+      familyId: m.family_id as string,
+      displayName: m.display_name as string,
+      email: m.email as string,
+      role: m.role as User["role"],
+      isActive: m.is_active as boolean,
+      initials: (m.initials as string) || initialsOf(m.display_name as string),
+    }));
+
+    const lockerRows = (lockers.data ?? []) as Row[];
+    const decryptedLockers: Locker[] = await Promise.all(
+      lockerRows.map(async (l) => {
+        const e = await envelope<LockerEnc>(key, "lockers", l);
+        return {
+          id: l.id as string,
+          familyId: l.family_id as string,
+          name: e.name ?? "",
+          type: l.type as Locker["type"],
+          branch: e.branch,
+          lockerNumber: e.lockerNumber,
+          keyHolderId: (l.key_holder_id as string) ?? undefined,
+          visitIntervalDays: (l.visit_interval_days as number) ?? undefined,
+          lastVisitedOn: (l.last_visited_on as string) ?? undefined,
+        };
+      }),
+    );
+
+    const decryptedJewelry: JewelryItem[] = await Promise.all(
+      ((jewelry.data ?? []) as Row[]).map(async (j) => {
+        const e = await envelope<JewelryEnc>(key, "jewelry", j);
+        return {
+          id: j.id as string,
+          familyId: j.family_id as string,
+          name: e.name ?? "",
+          category: e.category ?? "other",
+          customCategory: e.customCategory,
+          photos: e.photos ?? [],
+          grossWeight: e.grossWeight ?? 0,
+          netGoldWeight: e.netGoldWeight ?? 0,
+          stoneWeight: e.stoneWeight ?? 0,
+          purity: e.purity ?? 22,
+          hallmarkNo: e.hallmarkNo,
+          purchaseDate: e.purchaseDate,
+          purchasePrice: e.purchasePrice,
+          jeweler: e.jeweler,
+          notes: e.notes,
+          status: j.status as JewelryItem["status"],
+          ownerId: (j.owner_id as string) ?? "",
+          currentHolderId: (j.current_holder_id as string) ?? undefined,
+          currentLockerId: (j.current_locker_id as string) ?? undefined,
+          expectedReturnOn: (j.expected_return_on as string) ?? undefined,
+          isArchived: j.is_archived as boolean,
+          createdAt: j.created_at as string,
+        };
+      }),
+    );
+
+    const decryptedMovements: Movement[] = await Promise.all(
+      ((movements.data ?? []) as Row[]).map(async (m) => {
+        const e = await envelope<MovementEnc>(key, "movements", m);
+        const fromLocker = decryptedLockers.find((l) => l.id === m.from_locker_id);
+        const toLocker = decryptedLockers.find((l) => l.id === m.to_locker_id);
+        const holder = users.find((u) => u.id === m.holder_id);
+        return {
+          id: m.id as string,
+          familyId: m.family_id as string,
+          jewelryId: m.jewelry_id as string,
+          type: m.type as Movement["type"],
+          // The columns that used to hold these names are gone; the names come
+          // back by joining ids to rows this client has already decrypted.
+          fromLocation: fromLocker?.name ?? "—",
+          toLocation: toLocker?.name ?? holder?.displayName ?? e.jeweler ?? "—",
+          actorId: (m.actor_id as string) ?? "",
+          holderId: (m.holder_id as string) ?? undefined,
+          reason: e.reason,
+          takenAt: m.taken_at as string,
+          expectedReturnOn: (m.expected_return_on as string) ?? undefined,
+          returnedAt: (m.returned_at as string) ?? undefined,
+          eventId: (m.event_id as string) ?? undefined,
+        };
+      }),
+    );
+
+    const itemsByEvent = new Map<string, string[]>();
+    for (const link of (eventItems.data ?? []) as Row[]) {
+      const list = itemsByEvent.get(link.event_id as string) ?? [];
+      list.push(link.jewelry_id as string);
+      itemsByEvent.set(link.event_id as string, list);
+    }
+
+    const decryptedEvents: FamilyEvent[] = await Promise.all(
+      ((events.data ?? []) as Row[]).map(async (ev) => {
+        const e = await envelope<EventEnc>(key, "events", ev);
+        return {
+          id: ev.id as string,
+          familyId: ev.family_id as string,
+          name: e.name ?? "",
+          startsOn: ev.starts_on as string,
+          endsOn: ev.ends_on as string,
+          location: e.location,
+          notes: e.notes,
+          jewelryIds: itemsByEvent.get(ev.id as string) ?? [],
+        };
+      }),
+    );
+
+    const decryptedDocuments: VaultDocument[] = await Promise.all(
+      ((documents.data ?? []) as Row[]).map(async (d) => {
+        const e = await envelope<DocumentEnc>(key, "documents", d);
+        return {
+          id: d.id as string,
+          familyId: d.family_id as string,
+          jewelryId: d.jewelry_id as string,
+          type: d.type as VaultDocument["type"],
+          fileName: e.fileName ?? "",
+          uploadedAt: d.uploaded_at as string,
+          expiresOn: (d.expires_on as string) ?? undefined,
+        };
+      }),
+    );
+
+    // Audit rows carry ids and counts, never words — see 0006. The sentence is
+    // assembled here, from names this client has already decrypted, which is
+    // also why the server can write the log without being able to read it.
+    const nameOf = (id?: string) => decryptedJewelry.find((j) => j.id === id)?.name;
+    const auditEntries: AuditEntry[] = ((audit.data ?? []) as Row[]).map((a) => {
+      const p = (a.params ?? {}) as Record<string, unknown>;
+      const parts: string[] = [];
+      if (typeof p.count === "number") parts.push(`${p.count} ×`);
+      const single = nameOf(p.itemId as string | undefined);
+      if (single) parts.push(single);
+      const holder = users.find((u) => u.id === p.holderId)?.displayName;
+      const locker = decryptedLockers.find((l) => l.id === p.lockerId)?.name;
+      if (holder ?? locker) parts.push(`→ ${holder ?? locker}`);
+      if (p.from != null || p.to != null) parts.push(`${p.from ?? "—"} → ${p.to ?? "—"}`);
+      return {
+        id: a.id as string,
+        familyId: a.family_id as string,
+        actorId: (a.actor_id as string) ?? "",
+        actionKey: a.action_key as string,
+        entityType: a.entity_type as AuditEntry["entityType"],
+        entityId: (a.entity_id as string) ?? "",
+        detail: parts.join(" "),
+        at: a.at as string,
+      };
+    });
+
+    setState({
+      users,
+      lockers: decryptedLockers,
+      jewelry: decryptedJewelry,
+      movements: decryptedMovements,
+      events: decryptedEvents,
+      documents: decryptedDocuments,
+      audit: auditEntries,
+      notifications: ((notifications.data ?? []) as Row[]).map((n) => ({
+        id: n.id as string,
+        familyId: n.family_id as string,
+        kind: n.kind as VaultState["notifications"][number]["kind"],
+        params: (n.params ?? {}) as Record<string, string | number>,
+        jewelryId: (n.jewelry_id as string) ?? undefined,
+        eventId: (n.event_id as string) ?? undefined,
+        createdAt: n.created_at as string,
+        readAt: (n.read_at as string) ?? undefined,
+      })),
+      settings: {
+        familyId,
+        familyName: familyEnc.name ?? "",
+        goldRatePerGram24k: Number(familyRow.gold_rate_per_gram_24k ?? 0),
+        goldRateUpdatedOn: (familyRow.gold_rate_updated_on as string) ?? "",
+        currency: (familyRow.currency as string) ?? "INR",
+        dueSoonLeadDays: Number(familyRow.due_soon_lead_days ?? 3),
+        eventReminderLeadDays: Number(familyRow.event_reminder_lead_days ?? 3),
+        showPrices: Boolean(familyRow.show_prices),
+      },
+      currentUserId: memberId,
+    });
     setHydrated(true);
-  }, []);
+  }, [key, familyId, memberId]);
+
+  const reload = useCallback(() => {
+    void load().catch((e) => setError(describeConnectionFailure(e)));
+  }, [load]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Quota exceeded or private mode — the prototype still works in memory.
-    }
-  }, [state, hydrated]);
+    // Fetching and decrypting cannot happen during render. The rule this
+    // suppresses is about setState called *synchronously* in an effect body;
+    // load() is async, so every setState inside it lands in a later task. An
+    // external system read on mount is the case effects exist for.
+    //
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load().catch((e) => setError(describeConnectionFailure(e)));
+  }, [load]);
 
-  /** Applies a state change and appends an audit entry in one update. */
-  const commit = useCallback(
-    (
-      mutate: (draft: VaultState) => void,
-      audit: Omit<AuditEntry, "id" | "familyId" | "actorId" | "at"> | null,
-    ) => {
-      setState((prev) => {
-        const draft: VaultState = structuredClone(prev);
-        mutate(draft);
-        if (audit) {
-          draft.audit.unshift({
-            id: newId("a"),
-            familyId: draft.settings.familyId,
-            actorId: draft.currentUserId,
-            at: nowIso(),
-            ...audit,
-          });
-        }
-        return draft;
-      });
+  /**
+   * Runs a mutation, then reloads.
+   *
+   * Errors are held rather than thrown: the interface these back is
+   * fire-and-forget, so a rejected promise would surface as an unhandled
+   * rejection in the console and nothing at all on screen.
+   */
+  const mutate = useCallback(
+    (action: (key: VaultKey) => Promise<void>) => {
+      if (!key) {
+        setError("The vault is locked.");
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      void action(key)
+        .then(() => load())
+        .catch((e) => setError(describeConnectionFailure(e)))
+        .finally(() => setBusy(false));
     },
-    [],
+    [key, load],
   );
 
+  // ---- lookups -------------------------------------------------------------
+
   const currentUser = useMemo(
-    () => state.users.find((u) => u.id === state.currentUserId) ?? state.users[0],
+    () => state.users.find((u) => u.id === state.currentUserId) ?? PLACEHOLDER_USER,
     [state.users, state.currentUserId],
   );
 
@@ -154,12 +454,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const itemById = useCallback((id?: string) => state.jewelry.find((j) => j.id === id), [state.jewelry]);
   const eventById = useCallback((id?: string) => state.events.find((e) => e.id === id), [state.events]);
 
-  /**
-   * Raw location name, or undefined when the position has no name of its own
-   * (in transit, lost). Callers render the localised status label in that case —
-   * see `useLocationLabel` in components/vault.tsx. Kept name-only here so the
-   * data layer stays free of display language.
-   */
   const locationOf = useCallback(
     (item: JewelryItem): string | undefined => {
       switch (item.status) {
@@ -177,8 +471,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   const openMovementOf = useCallback(
-    (jewelryId: string) =>
-      state.movements.find((m) => m.jewelryId === jewelryId && !m.returnedAt),
+    (jewelryId: string) => state.movements.find((m) => m.jewelryId === jewelryId && !m.returnedAt),
     [state.movements],
   );
 
@@ -195,465 +488,316 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [state.documents],
   );
 
-  // ---- Mutations -----------------------------------------------------------
+  // ---- custody, through the state machine ----------------------------------
+  // None of these edit rows directly. The RPCs in 0003/0006 own the transitions
+  // and will refuse an illegal one, which is the point of them being RPCs.
 
   const takeOut = useCallback<VaultContextValue["takeOut"]>(
     ({ jewelryIds, holderId, reason, expectedReturnOn, eventId }) => {
-      commit(
-        (draft) => {
-          const holder = draft.users.find((u) => u.id === holderId);
-          for (const id of jewelryIds) {
-            const item = draft.jewelry.find((j) => j.id === id);
-            // Guard: only items sitting in a locker can be taken out. This is the
-            // client-side mirror of the unique-open-movement index in Postgres.
-            if (!item || item.status !== "in_locker") continue;
-            const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "—";
-
-            draft.movements.unshift({
-              id: newId("m"),
-              familyId: draft.settings.familyId,
-              jewelryId: id,
-              type: "takeout",
-              fromLocation: from,
-              toLocation: holder?.displayName ?? "—",
-              actorId: draft.currentUserId,
-              holderId,
-              reason,
-              takenAt: nowIso(),
-              expectedReturnOn,
-              eventId,
-            });
-
-            item.status = "with_member";
-            item.currentHolderId = holderId;
-            item.currentLockerId = undefined;
-            item.expectedReturnOn = expectedReturnOn;
-          }
-        },
-        {
-          actionKey: "audit.tookOut",
-          entityType: "movement",
-          entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} × → ${
-            state.users.find((u) => u.id === holderId)?.displayName ?? "—"
-          }${reason ? ` (${reason})` : ""}`,
-        },
-      );
+      mutate(async (k) => {
+        await rpc("take_out", {
+          p_jewelry_ids: jewelryIds,
+          p_holder_id: holderId,
+          p_enc: toPg(await seal(k, { reason }, aadFor("movements", jewelryIds[0]))),
+          p_expected_return: expectedReturnOn || null,
+          p_event_id: eventId ?? null,
+        });
+      });
     },
-    [commit, state.users],
+    [mutate],
   );
 
   const returnItems = useCallback<VaultContextValue["returnItems"]>(
     (jewelryIds, toLockerId) => {
-      commit(
-        (draft) => {
-          const locker = draft.lockers.find((l) => l.id === toLockerId);
-          for (const id of jewelryIds) {
-            const item = draft.jewelry.find((j) => j.id === id);
-            if (!item || item.status !== "with_member") continue;
-            const open = draft.movements.find((m) => m.jewelryId === id && !m.returnedAt);
-            if (open) open.returnedAt = nowIso();
-
-            item.status = "in_locker";
-            item.currentLockerId = toLockerId;
-            item.currentHolderId = undefined;
-            item.expectedReturnOn = undefined;
-          }
-          if (locker) locker.lastVisitedOn = today();
-        },
-        {
-          actionKey: "audit.returned",
-          entityType: "movement",
-          entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} × → ${
-            state.lockers.find((l) => l.id === toLockerId)?.name ?? "—"
-          }`,
-        },
-      );
+      mutate(async () => {
+        await rpc("return_items", { p_jewelry_ids: jewelryIds, p_to_locker_id: toLockerId });
+      });
     },
-    [commit, state.lockers],
+    [mutate],
   );
 
   const extendReturn = useCallback<VaultContextValue["extendReturn"]>(
     (jewelryId, newDate) => {
-      const item = state.jewelry.find((j) => j.id === jewelryId);
-      commit(
-        (draft) => {
-          const target = draft.jewelry.find((j) => j.id === jewelryId);
-          if (target) target.expectedReturnOn = newDate;
-          const open = draft.movements.find((m) => m.jewelryId === jewelryId && !m.returnedAt);
-          if (open) open.expectedReturnOn = newDate;
-        },
-        {
-          // Logged separately so the original promise is never silently rewritten.
-          actionKey: "audit.extendedDue",
-          entityType: "movement",
-          entityId: jewelryId,
-          detail: `${item?.name ?? "—"} — ${item?.expectedReturnOn ?? "?"} → ${newDate}`,
-        },
-      );
+      mutate(async () => {
+        await rpc("extend_return", { p_jewelry_id: jewelryId, p_new_date: newDate });
+      });
     },
-    [commit, state.jewelry],
+    [mutate],
   );
 
   const startTransfer = useCallback<VaultContextValue["startTransfer"]>(
     (jewelryIds, toLockerId, reason) => {
-      commit(
-        (draft) => {
-          const to = draft.lockers.find((l) => l.id === toLockerId);
-          for (const id of jewelryIds) {
-            const item = draft.jewelry.find((j) => j.id === id);
-            if (!item || item.status !== "in_locker") continue;
-            const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "—";
-
-            draft.movements.unshift({
-              id: newId("m"),
-              familyId: draft.settings.familyId,
-              jewelryId: id,
-              type: "transfer",
-              fromLocation: from,
-              toLocation: to?.name ?? "—",
-              actorId: draft.currentUserId,
-              reason,
-              takenAt: nowIso(),
-            });
-
-            // in_transit exists so items are never invisible mid-move.
-            item.status = "in_transit";
-            item.currentLockerId = toLockerId;
-          }
-        },
-        {
-          actionKey: "audit.startedTransfer",
-          entityType: "movement",
-          entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} × → ${
-            state.lockers.find((l) => l.id === toLockerId)?.name ?? "—"
-          }`,
-        },
-      );
+      mutate(async (k) => {
+        await rpc("start_transfer", {
+          p_jewelry_ids: jewelryIds,
+          p_to_locker_id: toLockerId,
+          p_enc: toPg(await seal(k, { reason }, aadFor("movements", jewelryIds[0]))),
+        });
+      });
     },
-    [commit, state.lockers],
+    [mutate],
   );
 
   const confirmArrival = useCallback<VaultContextValue["confirmArrival"]>(
     (jewelryIds) => {
-      commit(
-        (draft) => {
-          for (const id of jewelryIds) {
-            const item = draft.jewelry.find((j) => j.id === id);
-            if (!item || item.status !== "in_transit") continue;
-            const open = draft.movements.find((m) => m.jewelryId === id && !m.returnedAt);
-            if (open) open.returnedAt = nowIso();
-            item.status = "in_locker";
-          }
-        },
-        {
-          actionKey: "audit.confirmedArrival",
-          entityType: "movement",
-          entityId: jewelryIds.join(","),
-          detail: `${jewelryIds.length} ×`,
-        },
-      );
+      mutate(async () => {
+        await rpc("confirm_arrival", { p_jewelry_ids: jewelryIds });
+      });
     },
-    [commit],
+    [mutate],
   );
 
   const sendToJeweler = useCallback<VaultContextValue["sendToJeweler"]>(
     (jewelryId, jeweler, reason, expectedReturnOn) => {
-      commit(
-        (draft) => {
-          const item = draft.jewelry.find((j) => j.id === jewelryId);
-          if (!item || item.status !== "in_locker") return;
-          const from = draft.lockers.find((l) => l.id === item.currentLockerId)?.name ?? "—";
-
-          draft.movements.unshift({
-            id: newId("m"),
-            familyId: draft.settings.familyId,
-            jewelryId,
-            type: "service",
-            fromLocation: from,
-            toLocation: jeweler,
-            actorId: draft.currentUserId,
-            reason,
-            takenAt: nowIso(),
-            expectedReturnOn,
-          });
-
-          item.status = "at_jeweler";
-          item.currentLockerId = undefined;
-          item.expectedReturnOn = expectedReturnOn;
-          item.jeweler = jeweler;
-        },
-        {
-          actionKey: "audit.sentForService",
-          entityType: "jewelry",
-          entityId: jewelryId,
-          detail: `${state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—"} → ${jeweler}`,
-        },
-      );
+      mutate(async (k) => {
+        await rpc("send_to_jeweler", {
+          p_jewelry_id: jewelryId,
+          p_enc: toPg(await seal(k, { jeweler, reason }, aadFor("movements", jewelryId))),
+          p_expected_return: expectedReturnOn || null,
+        });
+        // The jeweler's name also belongs on the item, so the detail screen can
+        // say where it is without walking the movement history.
+        await patchJewelryEnvelope(k, jewelryId, { jeweler });
+      });
     },
-    [commit, state.jewelry],
+    [mutate],
   );
 
   const collectFromJeweler = useCallback<VaultContextValue["collectFromJeweler"]>(
     (jewelryId, toLockerId) => {
-      commit(
-        (draft) => {
-          const item = draft.jewelry.find((j) => j.id === jewelryId);
-          if (!item || item.status !== "at_jeweler") return;
-          const open = draft.movements.find((m) => m.jewelryId === jewelryId && !m.returnedAt);
-          if (open) open.returnedAt = nowIso();
-          item.status = "in_locker";
-          item.currentLockerId = toLockerId;
-          item.expectedReturnOn = undefined;
-        },
-        {
-          actionKey: "audit.collectedFromJeweler",
-          entityType: "jewelry",
-          entityId: jewelryId,
-          detail: state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—",
-        },
-      );
+      mutate(async () => {
+        await rpc("collect_from_jeweler", {
+          p_jewelry_id: jewelryId,
+          p_to_locker_id: toLockerId,
+        });
+      });
     },
-    [commit, state.jewelry],
+    [mutate],
   );
 
   const markLost = useCallback<VaultContextValue["markLost"]>(
     (jewelryId, reason) => {
-      commit(
-        (draft) => {
-          const item = draft.jewelry.find((j) => j.id === jewelryId);
-          if (!item) return;
-          draft.movements.unshift({
-            id: newId("m"),
-            familyId: draft.settings.familyId,
-            jewelryId,
-            type: "lost",
-            fromLocation: item.currentLockerId ?? item.currentHolderId ?? "—",
-            toLocation: "Lost",
-            actorId: draft.currentUserId,
-            reason,
-            takenAt: nowIso(),
-          });
-          item.status = "lost";
-          item.currentLockerId = undefined;
-          item.currentHolderId = undefined;
-        },
-        {
-          actionKey: "audit.markedLost",
-          entityType: "jewelry",
-          entityId: jewelryId,
-          detail: `${state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—"} — ${reason}`,
-        },
-      );
+      mutate(async (k) => {
+        await rpc("mark_lost", {
+          p_jewelry_id: jewelryId,
+          p_enc: toPg(await seal(k, { reason }, aadFor("movements", jewelryId))),
+        });
+      });
     },
-    [commit, state.jewelry],
+    [mutate],
   );
+
+  // ---- records -------------------------------------------------------------
 
   const saveItem = useCallback<VaultContextValue["saveItem"]>(
     (item) => {
-      const isNew = !state.jewelry.some((j) => j.id === item.id);
-      commit(
-        (draft) => {
-          const idx = draft.jewelry.findIndex((j) => j.id === item.id);
-          if (idx >= 0) draft.jewelry[idx] = item;
-          else draft.jewelry.unshift(item);
-        },
-        {
-          actionKey: isNew ? "audit.addedItem" : "audit.editedItem",
-          entityType: "jewelry",
-          entityId: item.id,
-          detail: item.name,
-        },
-      );
+      mutate(async (k) => {
+        const enc = await seal(
+          k,
+          {
+            name: item.name,
+            category: item.category,
+            customCategory: item.customCategory,
+            photos: item.photos,
+            grossWeight: item.grossWeight,
+            netGoldWeight: item.netGoldWeight,
+            stoneWeight: item.stoneWeight,
+            purity: item.purity,
+            hallmarkNo: item.hallmarkNo,
+            purchaseDate: item.purchaseDate,
+            purchasePrice: item.purchasePrice,
+            jeweler: item.jeweler,
+            notes: item.notes,
+          } satisfies JewelryEnc,
+          aadFor("jewelry", item.id),
+        );
+
+        const { error: e } = await getSupabase().from("jewelry").upsert({
+          id: item.id,
+          family_id: familyId,
+          enc: toPg(enc),
+          status: item.status,
+          owner_id: item.ownerId || null,
+          current_holder_id: item.currentHolderId ?? null,
+          current_locker_id: item.currentLockerId ?? null,
+          expected_return_on: item.expectedReturnOn ?? null,
+          is_archived: item.isArchived,
+        });
+        if (e) throw new Error(e.message);
+      });
     },
-    [commit, state.jewelry],
+    [familyId, mutate],
   );
 
   const archiveItem = useCallback<VaultContextValue["archiveItem"]>(
     (jewelryId) => {
-      commit(
-        (draft) => {
-          const item = draft.jewelry.find((j) => j.id === jewelryId);
-          // Archive rather than delete: movement history must never be orphaned.
-          if (item) item.isArchived = true;
-        },
-        {
-          actionKey: "audit.archivedItem",
-          entityType: "jewelry",
-          entityId: jewelryId,
-          detail: state.jewelry.find((j) => j.id === jewelryId)?.name ?? "—",
-        },
-      );
+      mutate(async () => {
+        // Archive, never delete: movement history must not be orphaned, which
+        // is also why 0002 grants no delete policy on this table.
+        const { error: e } = await getSupabase()
+          .from("jewelry")
+          .update({ is_archived: true })
+          .eq("id", jewelryId);
+        if (e) throw new Error(e.message);
+      });
     },
-    [commit, state.jewelry],
+    [mutate],
   );
 
   const saveLocker = useCallback<VaultContextValue["saveLocker"]>(
     (locker) => {
-      const isNew = !state.lockers.some((l) => l.id === locker.id);
-      commit(
-        (draft) => {
-          const idx = draft.lockers.findIndex((l) => l.id === locker.id);
-          if (idx >= 0) draft.lockers[idx] = locker;
-          else draft.lockers.push(locker);
-        },
-        {
-          actionKey: isNew ? "audit.addedLocker" : "audit.editedLocker",
-          entityType: "locker",
-          entityId: locker.id,
-          detail: locker.name,
-        },
-      );
+      mutate(async (k) => {
+        const enc = await seal(
+          k,
+          { name: locker.name, branch: locker.branch, lockerNumber: locker.lockerNumber } satisfies LockerEnc,
+          aadFor("lockers", locker.id),
+        );
+        const { error: e } = await getSupabase().from("lockers").upsert({
+          id: locker.id,
+          family_id: familyId,
+          enc: toPg(enc),
+          type: locker.type,
+          key_holder_id: locker.keyHolderId ?? null,
+          visit_interval_days: locker.visitIntervalDays ?? null,
+          last_visited_on: locker.lastVisitedOn ?? null,
+        });
+        if (e) throw new Error(e.message);
+      });
     },
-    [commit, state.lockers],
+    [familyId, mutate],
   );
 
   const recordLockerVisit = useCallback<VaultContextValue["recordLockerVisit"]>(
     (lockerId) => {
-      commit(
-        (draft) => {
-          const locker = draft.lockers.find((l) => l.id === lockerId);
-          if (locker) locker.lastVisitedOn = today();
-        },
-        {
-          actionKey: "audit.verifiedLocker",
-          entityType: "locker",
-          entityId: lockerId,
-          detail: state.lockers.find((l) => l.id === lockerId)?.name ?? "—",
-        },
-      );
+      mutate(async () => {
+        await rpc("record_locker_visit", { p_locker_id: lockerId, p_enc: null });
+      });
     },
-    [commit, state.lockers],
+    [mutate],
   );
 
   const saveEvent = useCallback<VaultContextValue["saveEvent"]>(
     (event) => {
-      const isNew = !state.events.some((e) => e.id === event.id);
-      commit(
-        (draft) => {
-          const idx = draft.events.findIndex((e) => e.id === event.id);
-          if (idx >= 0) draft.events[idx] = event;
-          else draft.events.unshift(event);
-        },
-        {
-          actionKey: isNew ? "audit.createdEvent" : "audit.editedEvent",
-          entityType: "event",
-          entityId: event.id,
-          detail: event.name,
-        },
-      );
+      mutate(async (k) => {
+        const supabase = getSupabase();
+        const enc = await seal(
+          k,
+          { name: event.name, location: event.location, notes: event.notes } satisfies EventEnc,
+          aadFor("events", event.id),
+        );
+        const { error: e } = await supabase.from("events").upsert({
+          id: event.id,
+          family_id: familyId,
+          enc: toPg(enc),
+          starts_on: event.startsOn,
+          ends_on: event.endsOn,
+        });
+        if (e) throw new Error(e.message);
+
+        // Replace the attachments wholesale. The join carries no data of its
+        // own, so a diff would be more code for an identical result.
+        const { error: delError } = await supabase
+          .from("event_items")
+          .delete()
+          .eq("event_id", event.id);
+        if (delError) throw new Error(delError.message);
+
+        if (event.jewelryIds.length > 0) {
+          const { error: insError } = await supabase.from("event_items").insert(
+            event.jewelryIds.map((jewelryId) => ({ event_id: event.id, jewelry_id: jewelryId })),
+          );
+          if (insError) throw new Error(insError.message);
+        }
+      });
     },
-    [commit, state.events],
+    [familyId, mutate],
   );
 
-  const inviteMember = useCallback<VaultContextValue["inviteMember"]>(
-    (displayName, email, role) => {
-      const id = newId("u");
-      commit(
-        (draft) => {
-          draft.users.push({
-            id,
-            familyId: draft.settings.familyId,
-            displayName,
-            email,
-            role,
-            isActive: true,
-            initials: displayName
-              .split(/\s+/)
-              .slice(0, 2)
-              .map((p) => p[0]?.toUpperCase() ?? "")
-              .join(""),
-          });
-        },
-        {
-          actionKey: "audit.invitedMember",
-          entityType: "user",
-          entityId: id,
-          detail: displayName,
-        },
-      );
-    },
-    [commit],
-  );
+  // ---- people --------------------------------------------------------------
+
+  const inviteMember = useCallback<VaultContextValue["inviteMember"]>(() => {
+    // Deliberately not implemented in the browser. Inviting means creating an
+    // auth user, which needs the service_role key — and that key bypasses every
+    // RLS policy, so it must never reach a page anyone can open. The Worker
+    // will own this; until then it is a dashboard action.
+    setError(
+      "Invites are not available in the app yet. Add the person in Supabase → Authentication → " +
+        "Users, with family_id and display_name in their user metadata, then admit them from this screen.",
+    );
+  }, []);
 
   const deactivateMember = useCallback<VaultContextValue["deactivateMember"]>(
     (userId) => {
-      commit(
-        (draft) => {
-          const user = draft.users.find((u) => u.id === userId);
-          if (user) user.isActive = false;
-        },
-        {
-          actionKey: "audit.deactivatedMember",
-          entityType: "user",
-          entityId: userId,
-          detail: state.users.find((u) => u.id === userId)?.displayName ?? "—",
-        },
-      );
+      mutate(async () => {
+        const { error: e } = await getSupabase()
+          .from("members")
+          .update({ is_active: false })
+          .eq("id", userId);
+        if (e) throw new Error(e.message);
+      });
     },
-    [commit, state.users],
+    [mutate],
   );
+
+  // ---- settings ------------------------------------------------------------
 
   const updateSettings = useCallback<VaultContextValue["updateSettings"]>(
     (patch) => {
-      const before = state.settings.goldRatePerGram24k;
-      commit(
-        (draft) => {
-          draft.settings = { ...draft.settings, ...patch };
-          if (patch.goldRatePerGram24k != null) draft.settings.goldRateUpdatedOn = today();
-        },
-        patch.goldRatePerGram24k != null
-          ? {
-              actionKey: "audit.updatedGoldRate",
-              entityType: "settings",
-              entityId: "settings",
-                  detail: `₹${before.toLocaleString("en-IN")} → ₹${patch.goldRatePerGram24k.toLocaleString("en-IN")}`,
-            }
-          : {
-              actionKey: "audit.updatedSettings",
-              entityType: "settings",
-              entityId: "settings",
-              detail: Object.keys(patch).join(", "),
-            },
-      );
+      mutate(async (k) => {
+        // The rate goes through its own RPC because changing it also snapshots
+        // it into `valuations`, so past valuations stay answerable.
+        if (patch.goldRatePerGram24k != null) {
+          await rpc("set_gold_rate", { p_rate: patch.goldRatePerGram24k });
+        }
+
+        const row: Row = {};
+        if (patch.currency != null) row.currency = patch.currency;
+        if (patch.dueSoonLeadDays != null) row.due_soon_lead_days = patch.dueSoonLeadDays;
+        if (patch.eventReminderLeadDays != null) row.event_reminder_lead_days = patch.eventReminderLeadDays;
+        if (patch.showPrices != null) row.show_prices = patch.showPrices;
+        if (patch.familyName != null) {
+          row.enc = toPg(await seal(k, { name: patch.familyName } satisfies FamilyEnc, aadFor("families", familyId!)));
+        }
+
+        if (Object.keys(row).length > 0) {
+          const { error: e } = await getSupabase().from("families").update(row).eq("id", familyId!);
+          if (e) throw new Error(e.message);
+        }
+      });
     },
-    [commit, state.settings.goldRatePerGram24k],
+    [familyId, mutate],
   );
+
+  // ---- notifications -------------------------------------------------------
 
   const markNotificationRead = useCallback<VaultContextValue["markNotificationRead"]>(
     (id) => {
-      commit((draft) => {
-        const n = draft.notifications.find((x) => x.id === id);
-        if (n && !n.readAt) n.readAt = nowIso();
-      }, null);
+      mutate(async () => {
+        const { error: e } = await getSupabase()
+          .from("notifications")
+          .update({ read_at: new Date().toISOString() })
+          .eq("id", id);
+        if (e) throw new Error(e.message);
+      });
     },
-    [commit],
+    [mutate],
   );
 
   const markAllNotificationsRead = useCallback(() => {
-    commit((draft) => {
-      for (const n of draft.notifications) if (!n.readAt) n.readAt = nowIso();
-    }, null);
-  }, [commit]);
-
-  const switchUser = useCallback<VaultContextValue["switchUser"]>(
-    (userId) => {
-      commit((draft) => {
-        draft.currentUserId = userId;
-      }, null);
-    },
-    [commit],
-  );
-
-  const resetDemo = useCallback(() => {
-    setState(structuredClone(seedState));
-  }, []);
+    mutate(async () => {
+      const { error: e } = await getSupabase()
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .is("read_at", null);
+      if (e) throw new Error(e.message);
+    });
+  }, [mutate]);
 
   const value: VaultContextValue = {
     state,
     hydrated,
+    error,
+    busy,
     currentUser,
     userById,
     lockerById,
@@ -681,11 +825,49 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     updateSettings,
     markNotificationRead,
     markAllNotificationsRead,
-    switchUser,
-    resetDemo,
+    reload,
   };
 
-  return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
+  return (
+    <VaultContext.Provider value={value}>
+      {children}
+      {error ? (
+        <div
+          role="alert"
+          className="fixed inset-x-3 bottom-20 z-50 rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg lg:bottom-6 lg:left-auto lg:right-6 lg:max-w-md"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex-1">{error}</span>
+            <button type="button" className="shrink-0 underline" onClick={() => setError(null)}>
+              ×
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </VaultContext.Provider>
+  );
+}
+
+/**
+ * Rewrites one part of an item's envelope without disturbing the rest.
+ *
+ * Needed because an envelope is all-or-nothing: to change the jeweler you must
+ * decrypt the whole record, edit it, and seal it again. Reading the row back
+ * first rather than trusting local state keeps a concurrent edit from being
+ * silently reverted.
+ */
+async function patchJewelryEnvelope(
+  key: VaultKey,
+  jewelryId: string,
+  patch: JewelryEnc,
+): Promise<void> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from("jewelry").select("id, enc").eq("id", jewelryId).single();
+  if (error) throw new Error(error.message);
+  const current = await envelope<JewelryEnc>(key, "jewelry", data as Row);
+  const enc = await seal(key, { ...current, ...patch }, aadFor("jewelry", jewelryId));
+  const { error: e } = await supabase.from("jewelry").update({ enc: toPg(enc) }).eq("id", jewelryId);
+  if (e) throw new Error(e.message);
 }
 
 export function useVault(): VaultContextValue {
@@ -695,6 +877,11 @@ export function useVault(): VaultContextValue {
 }
 
 // ---- Derived helpers -------------------------------------------------------
+//
+// Unchanged from the fixture version, and they work untouched because they take
+// a decrypted VaultState. Every filter here reads a field that is ciphertext in
+// Postgres, which is the concrete reason the whole table is fetched and opened
+// rather than queried — none of these could be a WHERE clause.
 
 /** Items that are out and past their expected return date. */
 export function overdueItems(state: VaultState): JewelryItem[] {

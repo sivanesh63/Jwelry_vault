@@ -33,7 +33,7 @@ export default function LockersPage() {
 
   function blankLocker(): Locker {
     return {
-      id: newId("l"),
+      id: newId(),
       familyId: state.settings.familyId,
       name: "",
       type: "bank",

@@ -11,6 +11,8 @@ import {
   Gem,
   LayoutDashboard,
   ListChecks,
+  LockKeyhole,
+  LogOut,
   MoreHorizontal,
   QrCode,
   ScrollText,
@@ -21,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVault } from "@/lib/store";
+import { useKeyVault } from "@/lib/keyvault";
 import { LANG_LABEL, useI18n, type Lang, type MessageKey } from "@/lib/i18n";
 import { Avatar } from "./ui";
 
@@ -64,7 +67,7 @@ const BARE_ROUTES = ["/login", "/onboarding"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { state, currentUser, switchUser } = useVault();
+  const { state, currentUser } = useVault();
   const { t } = useI18n();
   const [moreOpen, setMoreOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -102,13 +105,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="space-y-2 border-t border-border p-2">
           <LanguageToggle />
-          <UserSwitcher
+          <AccountPanel
             open={userMenuOpen}
             onToggle={() => setUserMenuOpen((v) => !v)}
-            onSelect={(id) => {
-              switchUser(id);
-              setUserMenuOpen(false);
-            }}
+            onClose={() => setUserMenuOpen(false)}
           />
         </div>
       </aside>
@@ -198,11 +198,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <LanguageToggle />
             </div>
             <div className="mt-3 border-t border-border pt-3">
-              <UserSwitcher
+              <AccountPanel
                 open={userMenuOpen}
                 onToggle={() => setUserMenuOpen((v) => !v)}
-                onSelect={(id) => {
-                  switchUser(id);
+                onClose={() => {
                   setUserMenuOpen(false);
                   setMoreOpen(false);
                 }}
@@ -290,16 +289,29 @@ function NotificationBell({ unread }: { unread: number }) {
  * Switches the acting user. This stands in for real auth so that role-dependent
  * UI (admin-only actions, "with you" framing) can be exercised in the prototype.
  */
-function UserSwitcher({
+/**
+ * Who you are, and the two ways to stop being here.
+ *
+ * This replaced a prototype user switcher that let you view the vault as any
+ * family member. That was a demo affordance and could not survive real auth:
+ * identity now comes from a signed session, and impersonating someone else is
+ * exactly what RLS spends its whole time preventing.
+ *
+ * Lock and Sign out are deliberately different. Lock forgets the key but keeps
+ * the session, so coming back needs only a PIN — the right thing when you hand
+ * the phone to someone. Sign out drops both.
+ */
+function AccountPanel({
   open,
   onToggle,
-  onSelect,
+  onClose,
 }: {
   open: boolean;
   onToggle: () => void;
-  onSelect: (id: string) => void;
+  onClose: () => void;
 }) {
-  const { state, currentUser } = useVault();
+  const { currentUser } = useVault();
+  const { lock, signOut } = useKeyVault();
   const { t } = useI18n();
   return (
     <div className="relative">
@@ -319,25 +331,28 @@ function UserSwitcher({
       </button>
       {open ? (
         <div className="absolute bottom-full left-0 mb-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
-          <p className="border-b border-border px-3 py-2 text-xs text-muted">
-            {t("nav.viewingAs")}
-          </p>
-          {state.users
-            .filter((u) => u.isActive)
-            .map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => onSelect(u.id)}
-                className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-surface-2",
-                  u.id === currentUser.id && "bg-gold-soft",
-                )}
-              >
-                <Avatar initials={u.initials} className="size-6 text-[10px]" />
-                <span className="truncate">{u.displayName}</span>
-              </button>
-            ))}
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              lock();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-2"
+          >
+            <LockKeyhole className="size-4 shrink-0 text-muted" />
+            <span className="truncate">{t("vault.lock")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              void signOut();
+            }}
+            className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-2"
+          >
+            <LogOut className="size-4 shrink-0 text-muted" />
+            <span className="truncate">{t("vault.signOut")}</span>
+          </button>
         </div>
       ) : null}
     </div>
