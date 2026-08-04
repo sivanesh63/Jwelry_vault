@@ -58,9 +58,12 @@ export function getSupabase(): SupabaseClient {
         detectSessionInUrl: false,
         flowType: "pkce",
       },
-      global: {
-        headers: { "x-application-name": "jewelry-vault" },
-      },
+      // No custom global headers, deliberately. An "x-application-name" label
+      // lived here and did nothing but appear in logs nobody reads — while
+      // adding itself to every CORS preflight, where the Edge Function's
+      // allow-list did not name it and the browser refused the request before
+      // it left the device. A decorative header is not worth a class of failure
+      // that reports itself as "Failed to send a request".
     });
   }
   return client;
