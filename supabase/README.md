@@ -7,12 +7,18 @@ Postgres schema, access rules and the movement state machine for the vault.
 Easiest path — the Supabase SQL editor. Paste and run each file **in order**:
 
 ```
-migrations/0001_schema.sql     tables, enums, indexes, constraints
-migrations/0002_rls.sql        row level security on every table
-migrations/0003_functions.sql  movement state machine
-migrations/0004_storage.sql    buckets and their policies
-migrations/0005_auth.sql       login → family member bridge
+migrations/0001_schema.sql      tables, enums, indexes, constraints
+migrations/0002_rls.sql         row level security on every table
+migrations/0003_functions.sql   movement state machine
+migrations/0004_storage.sql     buckets and their policies
+migrations/0005_auth.sql        login → family member bridge
+migrations/0006_encryption.sql  client-side encryption; key tables
 ```
+
+`0006` is not optional. It replaces the plaintext columns the first five
+migrations create with encrypted envelopes, adds the key-management tables, and
+re-issues every state-machine function to work without readable names. Stopping
+at `0005` leaves a schema the app no longer speaks. See [SECURITY.md](../SECURITY.md).
 
 Or with the CLI:
 
@@ -45,8 +51,12 @@ After signing up once (temporarily allow sign-ups, or create the user from the
 dashboard), run as that user:
 
 ```sql
-select public.bootstrap_family('Our Family Vault', 'Sivanesh');
+select public.bootstrap_family('Sivanesh');
 ```
+
+It takes only your own name now. The family's name is encrypted, so the browser
+generates the family key, seals the name with it, and writes it back — a SQL
+function has no key and could only store it in the clear.
 
 Then **turn public sign-up off** in Authentication → Sign In / Providers → Email.
 Everyone after this joins by invitation.
