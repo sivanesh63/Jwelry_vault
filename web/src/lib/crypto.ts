@@ -207,6 +207,16 @@ export async function openBytes(
   }
 }
 
+/**
+ * The label that binds an envelope to the row it belongs to.
+ *
+ * Defined once so a writer and a reader cannot disagree about it — they would
+ * only find out at decrypt time, as an indistinguishable "wrong key" error.
+ */
+export function aadFor(table: string, id: string): string {
+  return `${table}:${id}`;
+}
+
 // ------------------------------------------------------------ family key ----
 
 /** Generated once per family, at bootstrap, and never again unless rotated. */
