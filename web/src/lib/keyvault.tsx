@@ -22,6 +22,7 @@
  * THE STATES, AND WHY THERE ARE SO MANY
  *
  *   signed-out          no Supabase session
+ *   needs-password      arrived from an invite link: has a session, no password
  *   no-family           signed in, but no members row — the founder's first run
  *   needs-enrolment     a member with no keypair; they choose a passphrase
  *   awaiting-admission  keypair uploaded, but no admin has granted the key yet
@@ -64,6 +65,7 @@ import {
   decodeBytea,
   describeConnectionFailure,
   getSupabase,
+  arrivedFrom,
   isConfigured,
   rpc,
   toPg,
@@ -75,6 +77,7 @@ const AUTO_LOCK_MS = 5 * 60 * 1000;
 export type VaultStatus =
   | "loading"
   | "signed-out"
+  | "needs-password"
   | "no-family"
   | "needs-enrolment"
   | "awaiting-admission"
@@ -128,6 +131,8 @@ interface KeyVaultValue {
 
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** For someone who arrived from an invite link and has no password yet. */
+  setPassword: (password: string) => Promise<void>;
 
   /** Founder's first run: family, key, passphrase and recovery key in one go. */
   createVault: (familyName: string, displayName: string, passphrase: string)
@@ -192,10 +197,24 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     isConfigured() ? "loading" : "signed-out",
   );
 
+  // Set once, from how the page was opened. An invited person has a session and
+  // no password; letting them past this would leave them with an account they
+  // cannot sign into again once the link expires.
+  const [needsPassword, setNeedsPassword] = useState(arrivedFrom !== null);
+
   // Derived, never stored. If "unlocked" were its own state it could disagree
   // with whether the key is actually in hand — and the direction that disagrees
   // wrongly is a screen that thinks it can decrypt and cannot.
-  const status: VaultStatus = key ? "unlocked" : situation;
+  //
+  // The password step comes first for anyone who needs it, but only once they
+  // actually have a session — an expired invite link leaves them signed out,
+  // and a password form would be a dead end there.
+  const status: VaultStatus =
+    needsPassword && situation !== "signed-out" && situation !== "loading"
+      ? "needs-password"
+      : key
+        ? "unlocked"
+        : situation;
   const [memberId, setMemberId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -342,6 +361,16 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     setSituation("signed-out");
     await getSupabase().auth.signOut();
   }, []);
+
+  const setPassword = useCallback(
+    async (password: string) => {
+      const { error: e } = await getSupabase().auth.updateUser({ password });
+      if (e) throw new Error(e.message);
+      setNeedsPassword(false);
+      await refresh();
+    },
+    [refresh],
+  );
 
   const lock = useCallback(() => {
     setKeyState(null);
@@ -637,6 +666,7 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
       error,
       signIn,
       signOut,
+      setPassword,
       createVault,
       enrol,
       unlockByPassphrase,
@@ -653,7 +683,7 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     }),
     [
       status, key, memberId, familyId, isAdmin, devices, localDeviceId, error,
-      signIn, signOut, createVault, enrol, unlockByPassphrase, unlockByPin,
+      signIn, signOut, setPassword, createVault, enrol, unlockByPassphrase, unlockByPin,
       unlockByRecoveryKey, pendingAdmissions, enrolledMemberIds, admitMember, invite,
       addPin, removeDevice, lock, refresh,
     ],

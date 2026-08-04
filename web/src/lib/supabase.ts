@@ -32,6 +32,25 @@ const anonKey =
 
 let client: SupabaseClient | null = null;
 
+/**
+ * How this page was opened: "invite", "recovery", or null for a normal visit.
+ *
+ * Captured at module load, which is the only moment it is available —
+ * supabase-js clears the token out of the address bar as soon as it exchanges
+ * it, and by the time any component renders the evidence is gone.
+ *
+ * It matters because somebody arriving from an invite has a valid session and
+ * no password. Sending them straight into the vault would leave an account they
+ * can never sign into again once that link expires.
+ */
+export const arrivedFrom: "invite" | "recovery" | null = (() => {
+  if (typeof window === "undefined") return null;
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search);
+  const type = fragment.get("type") ?? query.get("type");
+  return type === "invite" || type === "recovery" ? type : null;
+})();
+
 /** True when the app has been given a project to talk to. */
 export function isConfigured(): boolean {
   return Boolean(url && anonKey);
@@ -53,10 +72,25 @@ export function getSupabase(): SupabaseClient {
         // session alone still decrypts nothing.
         persistSession: true,
         autoRefreshToken: true,
-        // No session tokens in the URL. This app has no OAuth redirect, and a
-        // token in a URL is a token in history, in logs, and in a shared link.
-        detectSessionInUrl: false,
-        flowType: "pkce",
+
+        // This was false, on the reasoning that a token in a URL is a token in
+        // history and in logs. The reasoning was fine and the setting was
+        // wrong: an invite link *is* a token in a URL, so the app ignored it
+        // and dropped invited people on a sign-in form asking for a password
+        // that did not exist yet. There was no way into the vault for anyone
+        // who was not the founder.
+        //
+        // supabase-js strips the token from the address bar as soon as it has
+        // exchanged it, so the exposure is one navigation rather than a
+        // permanent entry in history.
+        detectSessionInUrl: true,
+
+        // Implicit rather than PKCE, deliberately. PKCE keeps a code verifier
+        // in the browser that started the flow — but nobody starts an invite in
+        // a browser. It starts in an email client, and the link may well open
+        // in a different browser or on a different device, where the verifier
+        // does not exist and verification simply fails.
+        flowType: "implicit",
       },
       // No custom global headers, deliberately. An "x-application-name" label
       // lived here and did nothing but appear in logs nobody reads — while

@@ -319,6 +319,82 @@ function RecoveryKeyScreen({ printedKey }: { printedKey: string }) {
   );
 }
 
+/**
+ * Setting a password after arriving from an invite link.
+ *
+ * The link carries a one-time token, so the person already has a session by the
+ * time this renders — they are signed in without ever having had a password.
+ * Skipping this would leave them with an account they could never sign into
+ * again once the link expired, and they would not find out until the next time
+ * they tried.
+ *
+ * The password and the passphrase on the next screen are different things and
+ * the copy says so, because being asked for two secrets in a row otherwise
+ * reads like a mistake.
+ */
+function SetPassword() {
+  const { setPassword, signOut } = useKeyVault();
+  const { t } = useI18n();
+  const { busy, error, setError, run } = useSubmit();
+  const [password, setValue] = useState("");
+  const [repeat, setRepeat] = useState("");
+
+  return (
+    <Centered>
+      <div className="mb-8 text-center">
+        <Crest icon={<ShieldCheck className="size-7" />} />
+        <h1 className="text-2xl font-semibold tracking-tight">{t("vault.setPasswordTitle")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("vault.setPasswordBody")}</p>
+      </div>
+
+      <Card className="p-5">
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (password.length < 8) return setError(t("vault.passwordShort"));
+            if (password !== repeat) return setError(t("vault.passwordMismatch"));
+            void run(() => setPassword(password));
+          }}
+        >
+          <Field label={t("login.password")}>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setValue(e.target.value)}
+              autoComplete="new-password"
+              required
+              autoFocus
+            />
+          </Field>
+          <Field label={t("vault.passwordAgain")}>
+            <Input
+              type="password"
+              value={repeat}
+              onChange={(e) => setRepeat(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+          </Field>
+          <Problem message={error} />
+          <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+            {t("vault.setPasswordCta")}
+          </Button>
+        </form>
+      </Card>
+
+      <button
+        type="button"
+        className="mt-6 block w-full text-center text-xs text-muted underline"
+        onClick={() => void signOut()}
+      >
+        {t("vault.signOut")}
+      </button>
+    </Centered>
+  );
+}
+
 // ------------------------------------------------- invited member paths ----
 
 function Enrol() {
@@ -612,6 +688,8 @@ export function VaultGate({ children }: { children: React.ReactNode }) {
       );
     case "signed-out":
       return <SignIn />;
+    case "needs-password":
+      return <SetPassword />;
     case "no-family":
       return <CreateVault />;
     case "needs-enrolment":

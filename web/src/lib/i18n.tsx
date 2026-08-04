@@ -599,6 +599,14 @@ const en = {
   "vault.notConfiguredBody":
     "This build has no database configured. Set the Supabase URL and key in Cloudflare Pages, then redeploy.",
 
+  "vault.setPasswordTitle": "Set your password",
+  "vault.setPasswordBody":
+    "This is how you sign in from now on. You will choose a separate passphrase next — that one decrypts the vault, and nobody can reset it for you.",
+  "vault.passwordAgain": "Repeat password",
+  "vault.passwordShort": "Use at least 8 characters",
+  "vault.passwordMismatch": "The two passwords do not match",
+  "vault.setPasswordCta": "Save password",
+
   "vault.createTitle": "Create your family vault",
   "vault.createBody":
     "This makes the key that encrypts everything in the vault. It is generated on this device and never sent to the server.",
@@ -1241,6 +1249,14 @@ const ta: Record<MessageKey, string> = {
   "vault.notConfiguredTitle": "இணைப்பு இல்லை",
   "vault.notConfiguredBody":
     "இந்தப் பதிப்புக்கு தரவுத்தளம் அமைக்கப்படவில்லை. Cloudflare Pages-இல் Supabase URL மற்றும் விசையை அமைத்து மீண்டும் வெளியிடுங்கள்.",
+
+  "vault.setPasswordTitle": "உங்கள் கடவுச்சொல்லை அமைக்கவும்",
+  "vault.setPasswordBody":
+    "இனிமேல் இதைக் கொண்டுதான் உள்நுழைவீர்கள். அடுத்து தனியாக ஒரு கடவுத்தொடர் தேர்ந்தெடுப்பீர்கள் — அதுதான் பெட்டகத்தை மறைநீக்கும், அதை யாராலும் மீட்டமைக்க முடியாது.",
+  "vault.passwordAgain": "கடவுச்சொல்லை மீண்டும் உள்ளிடுங்கள்",
+  "vault.passwordShort": "குறைந்தது 8 எழுத்துகள் வேண்டும்",
+  "vault.passwordMismatch": "இரண்டு கடவுச்சொற்களும் ஒன்றல்ல",
+  "vault.setPasswordCta": "கடவுச்சொல்லைச் சேமி",
 
   "vault.createTitle": "உங்கள் குடும்பப் பெட்டகத்தை உருவாக்குங்கள்",
   "vault.createBody":
