@@ -830,7 +830,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       {error ? (
         <div
           role="alert"
-          className="fixed inset-x-3 bottom-20 z-50 rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg lg:bottom-6 lg:left-auto lg:right-6 lg:max-w-md"
+          // The bottom nav carries pb-[env(safe-area-inset-bottom)], so on a
+          // notched iPhone it is taller than the 5rem this used to clear — the
+          // banner sat behind it, which is a poor place for the only thing that
+          // reports a failed save.
+          className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 rounded-lg bg-red-600 px-4 py-3 text-sm text-white shadow-lg lg:bottom-6 lg:left-auto lg:right-6 lg:max-w-md"
         >
           <div className="flex items-start gap-3">
             <span className="flex-1">{error}</span>

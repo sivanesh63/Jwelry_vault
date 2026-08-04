@@ -317,7 +317,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader title={t("settings.storage")} description={t("settings.storageDesc")} />
             <div className="space-y-3 p-4">
-              <div className="flex items-baseline justify-between gap-2">
+              {/* Wraps: "384 KB of 1 GB" beside "12 photos across 8 items" does
+                  not fit on a 320px phone, and neither span can shrink. */}
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                 <span className="text-lg font-semibold tabular-nums">
                   {t("settings.storageUsed", {
                     used: formatBytes(storage.bytes),

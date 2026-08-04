@@ -127,7 +127,15 @@ function JewelryDetail() {
         <PhotoTile item={item} className="h-40 w-full sm:size-40" zoomable />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight">{item.name}</h1>
+            {/*
+              min-w-0 and break-words because a flex child will not shrink
+              below its content by default, and item names are user text —
+              "Temple work haram - Ramya wedding set" has no shortage of places
+              to break, but nothing guarantees the next one will.
+            */}
+            <h1 className="min-w-0 break-words text-xl font-semibold tracking-tight">
+              {item.name}
+            </h1>
             <StatusBadge item={item} />
             <DueBadge item={item} />
           </div>

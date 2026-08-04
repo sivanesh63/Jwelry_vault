@@ -73,13 +73,17 @@ export function PhotoViewer({
         type="button"
         onClick={onClose}
         aria-label={t("nav.close")}
-        className="absolute right-3 top-3 z-10 flex size-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
+        // Offset by the safe area: installed to the Home Screen this runs
+        // genuinely full-screen, so on a notched iPhone a fixed top-3 puts the
+        // close button under the status bar — unreachable, in the one view
+        // whose only exit it is.
+        className="absolute right-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-10 flex size-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
       >
         <X className="size-5" />
       </button>
 
       {many ? (
-        <p className="absolute left-1/2 top-5 -translate-x-1/2 text-sm tabular-nums text-white/70">
+        <p className="absolute left-1/2 top-[calc(1.25rem+env(safe-area-inset-top))] -translate-x-1/2 text-sm tabular-nums text-white/70">
           {index + 1} / {paths.length}
         </p>
       ) : null}
@@ -91,7 +95,13 @@ export function PhotoViewer({
           alt=""
           // max-h/max-w rather than object-cover: cropping is what the
           // thumbnail already did, and this view exists to undo it.
-          className="max-h-[92vh] max-w-[96vw] select-none object-contain"
+          //
+          // dvh, not vh. On mobile Safari `vh` measures the viewport as if the
+          // toolbars were hidden, so 92vh is taller than what is actually on
+          // screen and the bottom of the photo sits under the browser chrome.
+          // The 7rem leaves the close button and the counter clear of the
+          // image rather than floating on top of it.
+          className="max-h-[calc(100dvh-7rem)] max-w-[92vw] select-none object-contain"
         />
       ) : (
         <p className="flex items-center gap-2 text-sm text-white/70">

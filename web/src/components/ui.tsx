@@ -305,11 +305,21 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-surface p-5 sm:max-w-lg sm:rounded-2xl"
+        // dvh, not vh: on mobile Safari `vh` measures the viewport as though
+        // the toolbars were hidden, so a 90vh sheet extends under them and the
+        // footer buttons — the only way to confirm or cancel — end up off
+        // screen with nothing indicating they are there.
+        //
+        // The bottom padding clears the iPhone home indicator, which otherwise
+        // sits directly over those same buttons. Reset at sm:, where this stops
+        // being a bottom sheet and becomes a centred dialog.
+        className="relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl border border-border bg-surface p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-lg sm:rounded-2xl sm:pb-5"
       >
         <h2 className="mb-4 text-base font-semibold">{title}</h2>
         {children}
-        {footer ? <div className="mt-5 flex justify-end gap-2">{footer}</div> : null}
+        {/* flex-wrap so two long button labels — "Cancel" beside "Send invite"
+            in Tamil, for instance — do not push each other off the edge. */}
+        {footer ? <div className="mt-5 flex flex-wrap justify-end gap-2">{footer}</div> : null}
       </div>
     </div>
   );
