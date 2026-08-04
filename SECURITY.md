@@ -181,11 +181,16 @@ URLs stay open to anyone who finds one.
   the GitHub repo. An attacker who owns the Supabase account can drop the
   tables — encryption does not stop deletion.
 
-### Narrow the CSP
+### The CSP names one project — keep it that way
 
-[`web/public/_headers`](web/public/_headers) allows `https://*.supabase.co`.
-Replace both wildcards with your project ref once it exists. As written, an
-injected script could post the vault to somebody else's Supabase project.
+[`web/public/_headers`](web/public/_headers) pins `connect-src` to
+`mhoxsqbcndzeoexlqzdl.supabase.co`. It was a `*.supabase.co` wildcard until the
+project existed, which would have let an injected script post the decrypted
+vault to any Supabase project it liked — a free account is a low bar.
+
+If the project ref ever changes, this line changes with it. Forgetting shows up
+as every request failing with a CSP violation in the console, which is loud
+rather than subtle.
 
 ### Never commit
 
