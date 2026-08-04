@@ -159,7 +159,9 @@ interface VaultContextValue {
   saveLocker: (locker: Locker) => void;
   recordLockerVisit: (lockerId: string) => void;
   saveEvent: (event: FamilyEvent) => void;
-  inviteMember: (displayName: string, email: string, role: User["role"]) => void;
+  // No inviteMember here on purpose: creating a login needs the service_role
+  // key, so it lives on useKeyVault and runs in an Edge Function. Nothing about
+  // it is an encrypted record, which is all this store deals in.
   deactivateMember: (userId: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   markNotificationRead: (id: string) => void;
@@ -717,16 +719,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   // ---- people --------------------------------------------------------------
 
-  const inviteMember = useCallback<VaultContextValue["inviteMember"]>(() => {
-    // Deliberately not implemented in the browser. Inviting means creating an
-    // auth user, which needs the service_role key — and that key bypasses every
-    // RLS policy, so it must never reach a page anyone can open. The Worker
-    // will own this; until then it is a dashboard action.
-    setError(
-      "Invites are not available in the app yet. Add the person in Supabase → Authentication → " +
-        "Users, with family_id and display_name in their user metadata, then admit them from this screen.",
-    );
-  }, []);
+  // Inviting lives on `useKeyVault`, not here. It needs the service_role key,
+  // so it runs in the invite-member Edge Function rather than the browser —
+  // there is no encrypted record for this store to write.
 
   const deactivateMember = useCallback<VaultContextValue["deactivateMember"]>(
     (userId) => {
@@ -822,7 +817,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     saveLocker,
     recordLockerVisit,
     saveEvent,
-    inviteMember,
     deactivateMember,
     updateSettings,
     markNotificationRead,

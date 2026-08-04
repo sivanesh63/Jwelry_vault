@@ -234,6 +234,12 @@ const en = {
   "edit.uploading": "Encrypting…",
   "edit.removePhoto": "Remove photo",
   "edit.compressed": "{from} → {to}",
+  "members.pendingTitle": "Waiting to be let in",
+  "members.pendingBody":
+    "They have signed in and set a passphrase. Admitting them hands over the key that decrypts the vault — done here, on your device.",
+  "members.admit": "Admit",
+  "members.inviteThenAdmit":
+    "They get an email to set a password. Once they have signed in and chosen a passphrase, come back here and admit them — until then they can see nothing.",
   "settings.storage": "Photo storage",
   "settings.storageDesc": "Supabase gives 1 GB free",
   "settings.storageUsed": "{used} of {total}",
@@ -863,6 +869,12 @@ const ta: Record<MessageKey, string> = {
   "edit.uploading": "மறையாக்கப்படுகிறது…",
   "edit.removePhoto": "படத்தை நீக்கு",
   "edit.compressed": "{from} → {to}",
+  "members.pendingTitle": "அனுமதிக்காகக் காத்திருப்பவர்கள்",
+  "members.pendingBody":
+    "அவர்கள் உள்நுழைந்து கடவுத்தொடரை அமைத்துவிட்டார்கள். நீங்கள் அனுமதித்தால் பெட்டகத்தை மறைநீக்கும் விசை அவர்களுக்குக் கிடைக்கும் — அது உங்கள் சாதனத்திலேயே நடக்கிறது.",
+  "members.admit": "அனுமதி",
+  "members.inviteThenAdmit":
+    "கடவுச்சொல் அமைக்க அவர்களுக்கு மின்னஞ்சல் செல்லும். அவர்கள் உள்நுழைந்து கடவுத்தொடரைத் தேர்ந்தெடுத்த பிறகு இங்கே வந்து அனுமதியுங்கள் — அதுவரை அவர்களுக்கு எதுவும் தெரியாது.",
   "settings.storage": "படச் சேமிப்பு",
   "settings.storageDesc": "Supabase 1 GB இலவசமாகத் தருகிறது",
   "settings.storageUsed": "{total}-இல் {used}",

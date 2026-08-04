@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { MailPlus, ShieldCheck, UserMinus } from "lucide-react";
+import { KeyRound, Loader2, MailPlus, ShieldCheck, UserMinus } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
-import { estimateValue, formatMoneyShort, formatWeight } from "@/lib/format";
+import { useKeyVault, type PendingMember } from "@/lib/keyvault";
+import { estimateValue, formatMoneyShort, formatWeight, initialsOf } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import {
   Avatar,
@@ -22,13 +23,40 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/types";
 
 export default function MembersPage() {
-  const { state, currentUser, inviteMember, deactivateMember } = useVault();
+  const { state, currentUser, deactivateMember, reload } = useVault();
+  const { pendingAdmissions, admitMember, invite } = useKeyVault();
   const t = useT();
   const showPrices = useShowPrices();
   const [inviting, setInviting] = useState(false);
+  const [pending, setPending] = useState<PendingMember[]>([]);
+  const [working, setWorking] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
 
   const isAdmin = currentUser.role === "admin";
   const items = activeItems(state);
+
+  const loadPending = useCallback(() => {
+    if (!isAdmin) return;
+    void pendingAdmissions()
+      .then(setPending)
+      .catch((e: unknown) => setProblem(e instanceof Error ? e.message : String(e)));
+  }, [isAdmin, pendingAdmissions]);
+
+  useEffect(loadPending, [loadPending]);
+
+  async function admit(member: PendingMember) {
+    setWorking(member.memberId);
+    setProblem(null);
+    try {
+      await admitMember(member.memberId, member.publicKey);
+      loadPending();
+      reload();
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWorking(null);
+    }
+  }
 
   return (
     <>
@@ -55,6 +83,57 @@ export default function MembersPage() {
           <p className="text-sm text-muted">{t("members.inviteOnly")}</p>
         </div>
       </Card>
+
+      {problem ? (
+        <Card className="mb-4 border-danger/40 bg-danger/5">
+          <p role="alert" className="p-4 text-sm text-danger">
+            {problem}
+          </p>
+        </Card>
+      ) : null}
+
+      {/*
+        Admission is a separate act from invitation, and this is where it
+        happens. Creating a login gives somebody a seat; wrapping the family key
+        to their public key is what lets them read. The wrapping runs in this
+        browser with this admin's own copy of the key — the server only ever
+        moves a sealed envelope between two people.
+      */}
+      {pending.length > 0 ? (
+        <Card className="mb-4 border-gold/40">
+          <div className="border-b border-border p-4">
+            <p className="font-medium">{t("members.pendingTitle")}</p>
+            <p className="mt-0.5 text-sm text-muted">{t("members.pendingBody")}</p>
+          </div>
+          <ul>
+            {pending.map((p) => (
+              <li
+                key={p.memberId}
+                className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-0"
+              >
+                <Avatar initials={initialsOf(p.displayName)} className="size-9 text-xs" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{p.displayName}</span>
+                  <span className="block truncate text-sm text-muted">{p.email}</span>
+                </span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={working === p.memberId}
+                  onClick={() => void admit(p)}
+                >
+                  {working === p.memberId ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="size-4" />
+                  )}
+                  {t("members.admit")}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {state.users.map((user) => {
@@ -155,9 +234,10 @@ export default function MembersPage() {
       {inviting ? (
         <InviteModal
           onClose={() => setInviting(false)}
-          onInvite={(name, email, role) => {
-            inviteMember(name, email, role);
+          onInvite={async (name, email, role) => {
+            await invite(email, name, role);
             setInviting(false);
+            reload();
           }}
         />
       ) : null}
@@ -170,14 +250,28 @@ function InviteModal({
   onInvite,
 }: {
   onClose: () => void;
-  onInvite: (name: string, email: string, role: Role) => void;
+  onInvite: (name: string, email: string, role: Role) => Promise<void>;
 }) {
   const t = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
+  const [sending, setSending] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
 
   const valid = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email);
+
+  async function send() {
+    setSending(true);
+    setFailure(null);
+    try {
+      await onInvite(name.trim(), email.trim(), role);
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <Modal
@@ -189,17 +283,27 @@ function InviteModal({
           <Button variant="ghost" onClick={onClose}>
             {t("common.cancel")}
           </Button>
-          <Button
-            variant="primary"
-            disabled={!valid}
-            onClick={() => onInvite(name.trim(), email.trim(), role)}
-          >
+          <Button variant="primary" disabled={!valid || sending} onClick={() => void send()}>
+            {sending ? <Loader2 className="size-4 animate-spin" /> : null}
             {t("members.sendInvite")}
           </Button>
         </>
       }
     >
       <div className="space-y-3">
+        {failure ? (
+          <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+            {failure}
+          </p>
+        ) : null}
+        {/*
+          Said before they send, not after. An invited person seeing an empty
+          vault and reporting the app as broken is the failure this whole flow
+          exists to prevent, and the admin is the one who can prevent it.
+        */}
+        <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">
+          {t("members.inviteThenAdmit")}
+        </p>
         <Field label={t("members.name")} required>
           <Input
             value={name}

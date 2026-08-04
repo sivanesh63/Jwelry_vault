@@ -81,6 +81,14 @@ export type VaultStatus =
   | "locked"
   | "unlocked";
 
+export interface PendingMember {
+  memberId: string;
+  displayName: string;
+  email: string;
+  publicKey: Bytes;
+  enrolledAt: string;
+}
+
 export interface DeviceSummary {
   id: string;
   label: string;
@@ -131,6 +139,13 @@ interface KeyVaultValue {
   unlockByPin: (deviceId: string, pin: string) => Promise<void>;
   unlockByRecoveryKey: (printedKey: string) => Promise<void>;
 
+  /** Members who have enrolled a key but have not been let into the vault. */
+  pendingAdmissions: () => Promise<PendingMember[]>;
+  /** Wraps the family key to that member's public key. Admin only. */
+  admitMember: (memberId: string, publicKey: Bytes) => Promise<void>;
+  /** Creates a login, via the Edge Function that holds the service_role key. */
+  invite: (email: string, displayName: string, role: "admin" | "member") => Promise<void>;
+
   addPin: (pin: string, label: string) => Promise<void>;
   removeDevice: (deviceId: string) => Promise<void>;
   lock: () => void;
@@ -138,6 +153,25 @@ interface KeyVaultValue {
 }
 
 const KeyVaultContext = createContext<KeyVaultValue | null>(null);
+
+/**
+ * Pulls the real message out of a failed Edge Function call.
+ *
+ * supabase-js surfaces any non-2xx as "Edge Function returned a non-2xx status
+ * code" and hides the response body on the error object. The body is where the
+ * function put the sentence worth reading — "Only an admin can invite", or the
+ * note about the free plan's email rate limit.
+ */
+async function readFunctionError(error: unknown): Promise<string | null> {
+  const response = (error as { context?: Response })?.context;
+  if (!response || typeof response.json !== "function") return null;
+  try {
+    const body = (await response.json()) as { error?: string };
+    return body.error ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export function KeyVaultProvider({ children }: { children: ReactNode }) {
   const [key, setKeyState] = useState<VaultKey | null>(null);
@@ -491,6 +525,54 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     [familyId],
   );
 
+  const pendingAdmissions = useCallback(async (): Promise<PendingMember[]> => {
+    const rows = await rpc<Record<string, unknown>[]>("pending_admissions");
+    return (rows ?? []).map((r) => ({
+      memberId: r.member_id as string,
+      displayName: r.display_name as string,
+      email: r.email as string,
+      publicKey: decodeBytea(r.public_key)!,
+      enrolledAt: r.enrolled_at as string,
+    }));
+  }, []);
+
+  const admitMember = useCallback(
+    async (memberId: string, publicKey: Bytes) => {
+      if (!key) throw new Error("Unlock the vault before admitting anyone");
+      // The wrapping happens here, in the admin's browser, with the admin's own
+      // copy of the family key. The server only ever moves a sealed envelope
+      // between two people — it never holds anything it could open.
+      const wrap = await wrapFamilyKeyFor(key, publicKey);
+      await rpc("grant_family_key", {
+        p_member_id: memberId,
+        p_wrapped: toPg(wrap.wrapped),
+        p_ephemeral: toPg(wrap.ephemeralPublic),
+        p_key_version: key.version,
+      });
+    },
+    [key],
+  );
+
+  const invite = useCallback(
+    async (email: string, displayName: string, role: "admin" | "member") => {
+      const { data, error: e } = await getSupabase().functions.invoke("invite-member", {
+        body: { email, displayName, role },
+      });
+      if (e) {
+        // functions.invoke reports a non-2xx as a generic FunctionsHttpError.
+        // The useful sentence is in the body, so it is dug out rather than
+        // replaced with "Edge Function returned a non-2xx status code".
+        const detail =
+          (data as { error?: string } | null)?.error ??
+          (await readFunctionError(e)) ??
+          e.message;
+        throw new Error(detail);
+      }
+      await refresh();
+    },
+    [refresh],
+  );
+
   const addPin = useCallback(
     async (pin: string, label: string) => {
       const vaultKey = key;
@@ -544,6 +626,9 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
       unlockByPassphrase,
       unlockByPin,
       unlockByRecoveryKey,
+      pendingAdmissions,
+      admitMember,
+      invite,
       addPin,
       removeDevice,
       lock,
@@ -552,7 +637,8 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     [
       status, key, memberId, familyId, isAdmin, devices, localDeviceId, error,
       signIn, signOut, createVault, enrol, unlockByPassphrase, unlockByPin,
-      unlockByRecoveryKey, addPin, removeDevice, lock, refresh,
+      unlockByRecoveryKey, pendingAdmissions, admitMember, invite,
+      addPin, removeDevice, lock, refresh,
     ],
   );
 
