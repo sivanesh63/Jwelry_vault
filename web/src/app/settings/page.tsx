@@ -33,7 +33,7 @@ const THEMES: { value: Theme; label: MessageKey; icon: typeof Sun }[] = [
 
 export default function SettingsPage() {
   const { state, updateSettings, currentUser } = useVault();
-  const { devices, removeDevice, lock, isAdmin } = useKeyVault();
+  const { devices, removeDevice, lock } = useKeyVault();
   const { t, lang, setLang } = useI18n();
   const { theme, setTheme } = useTheme();
   const showPrices = state.settings.showPrices;
@@ -179,19 +179,12 @@ export default function SettingsPage() {
           <Card>
             <CardHeader title={t("settings.prices")} description={t("settings.pricesDesc")} />
             <div className="p-4">
-              {/*
-                Disabled rather than hidden. Price visibility is family-wide, so
-                a member seeing the switch and not being able to move it is the
-                truthful picture — hiding it would leave them wondering where
-                the prices went.
-              */}
               <button
                 type="button"
                 role="switch"
                 aria-checked={showPrices}
-                disabled={!isAdmin}
                 onClick={() => updateSettings({ showPrices: !showPrices })}
-                className="flex w-full items-center justify-between gap-3 text-left disabled:opacity-60"
+                className="flex w-full items-center justify-between gap-3 text-left"
               >
                 <span className="flex min-w-0 items-center gap-2">
                   {showPrices ? (
@@ -263,14 +256,11 @@ export default function SettingsPage() {
 
               <Button
                 variant="primary"
-                disabled={!rateChanged || Number(rate) <= 0 || !isAdmin}
+                disabled={!rateChanged || Number(rate) <= 0}
                 onClick={() => updateSettings({ goldRatePerGram24k: Number(rate) })}
               >
                 {t("settings.updateRate")}
               </Button>
-              {!isAdmin ? (
-                <p className="mt-2 text-xs text-muted">{t("common.adminOnly")}</p>
-              ) : null}
             </div>
           </Card>
           ) : null}
@@ -292,9 +282,8 @@ export default function SettingsPage() {
               </Field>
               <Button
                 disabled={
-                  !isAdmin ||
-                  (familyName === state.settings.familyName &&
-                    Number(dueSoon) === state.settings.dueSoonLeadDays)
+                  familyName === state.settings.familyName &&
+                  Number(dueSoon) === state.settings.dueSoonLeadDays
                 }
                 onClick={() =>
                   updateSettings({
@@ -305,7 +294,6 @@ export default function SettingsPage() {
               >
                 {t("common.save")}
               </Button>
-              {!isAdmin ? <p className="text-xs text-muted">{t("common.adminOnly")}</p> : null}
             </div>
           </Card>
         </div>

@@ -16,7 +16,6 @@ import {
   Upload,
 } from "lucide-react";
 import { useVault } from "@/lib/store";
-import { useKeyVault } from "@/lib/keyvault";
 import {
   addDays,
   estimateValue,
@@ -85,7 +84,6 @@ function JewelryDetail() {
     archiveItem,
     extendReturn,
   } = useVault();
-  const { isAdmin } = useKeyVault();
 
   const [serviceOpen, setServiceOpen] = useState(false);
   const [collectOpen, setCollectOpen] = useState(false);
@@ -202,19 +200,10 @@ function JewelryDetail() {
               </Button>
             ) : null}
 
-            {/*
-              Editing an item is admin-only; moving one is not. Everything
-              above this line — take out, return, transfer, send for service —
-              stays available to every member, because custody is the daily work
-              and restricting it would make the vault a nuisance rather than a
-              record.
-            */}
-            {isAdmin ? (
-              <LinkButton href={`/jewelry/edit/?id=${item.id}`} size="sm">
-                <Pencil className="size-4" />
-                {t("common.edit")}
-              </LinkButton>
-            ) : null}
+            <LinkButton href={`/jewelry/edit/?id=${item.id}`} size="sm">
+              <Pencil className="size-4" />
+              {t("common.edit")}
+            </LinkButton>
           </div>
         </div>
       </div>
@@ -342,12 +331,10 @@ function JewelryDetail() {
             </div>
           </Card>
 
-          {isAdmin ? (
-            <Button variant="danger" className="w-full" onClick={() => setArchiveOpen(true)}>
-              <Archive className="size-4" />
-              {t("item.archive")}
-            </Button>
-          ) : null}
+          <Button variant="danger" className="w-full" onClick={() => setArchiveOpen(true)}>
+            <Archive className="size-4" />
+            {t("item.archive")}
+          </Button>
         </div>
       </div>
 
