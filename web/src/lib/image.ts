@@ -44,6 +44,20 @@ export interface PrepareOptions {
 const DEFAULTS = { maxEdge: 1600, targetBytes: 400 * 1024 };
 
 /**
+ * The largest file we will even attempt to decode.
+ *
+ * Not about storage — the output is 400 KB whatever goes in. It is about
+ * memory: `createImageBitmap` decodes to raw pixels, so a 108-megapixel phone
+ * shot expands to roughly 400 MB in RAM before a single byte is written. On a
+ * mid-range phone that kills the tab, and a tab that vanishes mid-upload gives
+ * the user nothing to act on.
+ *
+ * 30 MB is far above any camera roll photo and far below the point where
+ * decoding is dangerous.
+ */
+const MAX_INPUT_BYTES = 30 * 1024 * 1024;
+
+/**
  * HEIC is what an iPhone shoots by default, and only Safari can decode it in a
  * canvas. Everywhere else `createImageBitmap` throws, so the failure is caught
  * and turned into a sentence a person can act on rather than a stack trace.
@@ -57,6 +71,16 @@ export async function prepareImage(
   options: PrepareOptions = {},
 ): Promise<PreparedImage> {
   const { maxEdge, targetBytes } = { ...DEFAULTS, ...options };
+
+  // Checked before decoding, not after. Once createImageBitmap is called the
+  // memory is already committed, so a check afterwards would run in a tab that
+  // may not survive to perform it.
+  if (file.size > MAX_INPUT_BYTES) {
+    throw new Error(
+      `That image is ${Math.round(file.size / 1_000_000)} MB, which is too large to process on a phone. ` +
+        `Photos straight from a camera are normally well under 30 MB.`,
+    );
+  }
 
   let bitmap: ImageBitmap;
   try {

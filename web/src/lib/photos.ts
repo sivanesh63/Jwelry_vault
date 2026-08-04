@@ -39,6 +39,23 @@ import { getSupabase } from "./supabase";
 const PHOTO_BUCKET = "jewelry-photos";
 const DOCUMENT_BUCKET = "documents";
 
+/**
+ * Per-file caps, mirroring `file_size_limit` in 0004_storage.sql.
+ *
+ * Duplicated deliberately, and checked here first. Supabase enforces these
+ * server-side, but its rejection arrives as "The object exceeded the maximum
+ * allowed size" — after the whole file has been compressed, encrypted and
+ * uploaded. Failing early costs nothing and can say something useful.
+ *
+ * Photos never approach theirs: compression targets 400 KB, so 5 MB is a
+ * backstop for a pathological case rather than a limit anyone meets. Documents
+ * are different — a scanned PDF is passed through untouched.
+ */
+export const MAX_STORED_BYTES = {
+  photo: 5 * 1024 * 1024,
+  document: 10 * 1024 * 1024,
+} as const;
+
 /** Every stored object declares this. The truth of the bytes, not of the image. */
 const STORED_TYPE = "application/octet-stream";
 
@@ -58,7 +75,15 @@ async function upload(
   key: VaultKey,
   path: string,
   bytes: Bytes,
+  limit: number,
 ): Promise<void> {
+  // Measured against the sealed size, since that is what the bucket sees.
+  if (bytes.length + ENVELOPE_OVERHEAD > limit) {
+    throw new Error(
+      `That file is ${formatMb(bytes.length)} after compression, over the ${formatMb(limit)} limit. ` +
+        `Photograph the document instead of scanning it, or split it into pages.`,
+    );
+  }
   const sealed = await sealBytes(key, bytes, aadFor("storage", path));
   const { error } = await getSupabase()
     .storage.from(bucket)
@@ -92,7 +117,7 @@ export async function uploadPhoto(
 ): Promise<UploadedPhoto> {
   const image = await prepareImage(file);
   const path = `${familyId}/${jewelryId}/${crypto.randomUUID()}.${extensionFor(image.type)}`;
-  await upload(PHOTO_BUCKET, key, path, image.bytes);
+  await upload(PHOTO_BUCKET, key, path, image.bytes, MAX_STORED_BYTES.photo);
   return {
     path,
     originalBytes: file.size,
@@ -114,8 +139,13 @@ export async function uploadDocument(
 ): Promise<string> {
   const doc = await prepareDocument(file);
   const path = `${familyId}/${jewelryId}/${crypto.randomUUID()}.${extensionFor(doc.type)}`;
-  await upload(DOCUMENT_BUCKET, key, path, doc.bytes);
+  await upload(DOCUMENT_BUCKET, key, path, doc.bytes, MAX_STORED_BYTES.document);
   return path;
+}
+
+/** Whole megabytes, for a message rather than a readout. */
+function formatMb(bytes: number): string {
+  return `${Math.max(1, Math.round(bytes / 1_000_000))} MB`;
 }
 
 export async function downloadDecrypted(
