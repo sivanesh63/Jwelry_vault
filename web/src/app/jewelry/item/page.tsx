@@ -124,7 +124,7 @@ function JewelryDetail() {
       </Link>
 
       <div className="mb-4 flex flex-col gap-4 sm:flex-row">
-        <PhotoTile item={item} className="h-40 w-full sm:size-40" />
+        <PhotoTile item={item} className="h-40 w-full sm:size-40" zoomable />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight">{item.name}</h1>

@@ -11,6 +11,7 @@ import { estimateValue, formatBytes, formatMoney, today } from "@/lib/format";
 import { categoryKey, usePurity, useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, Field, Input, Select, Textarea } from "@/components/ui";
 import { CATEGORIES, useShowPrices } from "@/components/vault";
+import { PhotoViewer } from "@/components/photo-viewer";
 import { cn, newId } from "@/lib/utils";
 import type { JewelryCategory, JewelryItem } from "@/lib/types";
 
@@ -26,10 +27,12 @@ function PhotoThumb({
   path,
   saving,
   onRemove,
+  onOpen,
 }: {
   path: string;
   saving?: UploadedPhoto;
   onRemove: () => void;
+  onOpen: () => void;
 }) {
   const t = useT();
   const { url, error } = usePhotoUrl(path);
@@ -37,8 +40,12 @@ function PhotoThumb({
     <figure className="shrink-0">
       <div className="relative size-24 overflow-hidden rounded-lg border border-border bg-surface-2">
         {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="size-full object-cover" />
+          // A 96px square is not enough to tell a good photo from a blurred
+          // one, and finding that out after saving is worse than checking now.
+          <button type="button" onClick={onOpen} className="size-full cursor-zoom-in">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="size-full object-cover" />
+          </button>
         ) : (
           <span className="flex size-full items-center justify-center text-xs text-muted">
             {error ? "!" : <Loader2 className="size-4 animate-spin" />}
@@ -109,6 +116,7 @@ function EditJewelry() {
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [savings, setSavings] = useState<Record<string, UploadedPhoto>>({});
+  const [viewing, setViewing] = useState<number | null>(null);
   const { key: vaultKey } = useKeyVault();
 
   function set<K extends keyof JewelryItem>(key: K, value: JewelryItem[K]) {
@@ -216,11 +224,12 @@ function EditJewelry() {
             <CardHeader title={t("edit.photos")} description={t("edit.photosDesc")} />
             <div className="space-y-3 p-4">
               <div className="flex flex-wrap gap-3">
-                {form.photos.map((path) => (
+                {form.photos.map((path, at) => (
                   <PhotoThumb
                     key={path}
                     path={path}
                     saving={savings[path]}
+                    onOpen={() => setViewing(at)}
                     onRemove={() =>
                       setForm((f) => {
                         const sizes = { ...f.photoSizes };
@@ -273,6 +282,15 @@ function EditJewelry() {
                 </p>
               ) : null}
               <p className="text-xs text-muted">{t("edit.photosNote")}</p>
+
+              {viewing !== null ? (
+                <PhotoViewer
+                  paths={form.photos}
+                  index={viewing}
+                  onIndex={setViewing}
+                  onClose={() => setViewing(null)}
+                />
+              ) : null}
             </div>
           </Card>
 

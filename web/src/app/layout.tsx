@@ -20,6 +20,18 @@ export const metadata: Metadata = {
     title: "Jewelry Vault",
     statusBarStyle: "default",
   },
+  // PNG, not the SVG. iOS does not accept SVG for a home-screen icon and does
+  // not read the manifest for one either — without an apple-touch-icon it
+  // screenshots the page and uses that, which is how a carefully designed app
+  // ends up with a blurry login form as its icon.
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

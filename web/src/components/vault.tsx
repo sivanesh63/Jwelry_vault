@@ -3,7 +3,7 @@
 /** Domain-specific presentational components shared across screens. */
 
 import Link from "next/link";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   AlertTriangle,
   Circle,
@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useVault } from "@/lib/store";
 import { usePhotoUrl } from "@/lib/photos";
+import { PhotoViewer } from "./photo-viewer";
 import {
   STATUS_TONE,
   daysBetween,
@@ -80,35 +81,69 @@ export const CATEGORIES: JewelryCategory[] = [
 export function PhotoTile({
   item,
   className,
+  /**
+   * Opens a full-screen viewer on tap. Off by default because in a list the
+   * whole row is a link to the item — a tile that swallowed that tap would put
+   * a photo in the way of the thing the row is for.
+   */
+  zoomable = false,
 }: {
   item: JewelryItem;
   className?: string;
+  zoomable?: boolean;
 }) {
   const Icon = CATEGORY_ICON[item.category];
   const hue = hashHue(item.id);
   const { url } = usePhotoUrl(item.photos[0]);
+  const [viewing, setViewing] = useState<number | null>(null);
+
+  const frame = cn(
+    "flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border",
+    className,
+  );
+  const fallbackStyle = url
+    ? undefined
+    : {
+        background: `linear-gradient(140deg, hsl(${hue} 45% 88%), hsl(${(hue + 40) % 360} 40% 78%))`,
+      };
+
+  const inner = url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt="" className="size-full object-cover" />
+  ) : (
+    <Icon className="size-1/3 text-black/35" strokeWidth={1.5} />
+  );
+
+  // Only interactive when there is actually something to enlarge. A button that
+  // opens a viewer onto the category icon would be a promise the tile cannot
+  // keep.
+  if (!zoomable || item.photos.length === 0) {
+    return (
+      <div className={frame} style={fallbackStyle}>
+        {inner}
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border",
-        className,
-      )}
-      style={
-        url
-          ? undefined
-          : {
-              background: `linear-gradient(140deg, hsl(${hue} 45% 88%), hsl(${(hue + 40) % 360} 40% 78%))`,
-            }
-      }
-    >
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" className="size-full object-cover" />
-      ) : (
-        <Icon className="size-1/3 text-black/35" strokeWidth={1.5} />
-      )}
-    </div>
+    <>
+      <button
+        type="button"
+        onClick={() => setViewing(0)}
+        className={cn(frame, "cursor-zoom-in transition-opacity hover:opacity-90")}
+        style={fallbackStyle}
+      >
+        {inner}
+      </button>
+      {viewing !== null ? (
+        <PhotoViewer
+          paths={item.photos}
+          index={viewing}
+          onIndex={setViewing}
+          onClose={() => setViewing(null)}
+        />
+      ) : null}
+    </>
   );
 }
 
