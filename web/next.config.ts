@@ -17,17 +17,27 @@ import type { NextConfig } from "next";
  * that the export still compiles.
  */
 const isCI = Boolean(process.env.CF_PAGES ?? process.env.CI);
-const missing = [
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-].filter((name) => !process.env[name]);
+
+// Each entry is a list of accepted names; any one of them satisfies it. The key
+// has two because Supabase renamed "anon" to "publishable" and its Connect
+// snippet now emits the newer one — copying what the dashboard gives you should
+// not be a mistake.
+const REQUIRED = [
+  ["NEXT_PUBLIC_SUPABASE_URL"],
+  ["NEXT_PUBLIC_SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"],
+];
+
+const missing = REQUIRED.filter((names) => !names.some((n) => process.env[n])).map((names) =>
+  names.join(" or "),
+);
 
 if (isCI && missing.length > 0) {
   throw new Error(
     `Missing at build time: ${missing.join(", ")}.\n\n` +
-      `In Cloudflare these belong under Settings -> Build -> Variables and secrets, ` +
-      `for BOTH Production and Preview. The top-level "Variables and secrets" section ` +
-      `is runtime-only and has no effect on a static export.`,
+      `In Cloudflare these are BUILD variables: Settings -> Pages configuration -> ` +
+      `Environment variables -> Production. The newer top-level "Variables and secrets" ` +
+      `panel is runtime configuration for Pages Functions and has no effect on a static ` +
+      `export, which is compiled before any request exists.`,
   );
 }
 

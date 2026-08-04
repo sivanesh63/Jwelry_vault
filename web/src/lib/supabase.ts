@@ -13,13 +13,22 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fromPgBytea, toPgBytea, type Bytes } from "./crypto";
 
 const URL_VAR = "NEXT_PUBLIC_SUPABASE_URL";
-const KEY_VAR = "NEXT_PUBLIC_SUPABASE_ANON_KEY";
+const KEY_VAR = "NEXT_PUBLIC_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY";
 
-// Read through constants, not a computed key. Next replaces `process.env.X` at
-// build time only when X is written out literally; `process.env[name]` is left
-// alone and evaluates to undefined in the browser.
+// Written out literally, never as process.env[name]. Next substitutes these at
+// build time only when the property access is spelled out; a computed key is
+// left alone and evaluates to undefined in the browser.
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// Two names for the same thing. Supabase renamed the browser-safe key from
+// "anon" to "publishable", and its own Connect snippet now emits
+// NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. Copying what the dashboard hands you
+// should work, so both are accepted rather than making the name a thing to get
+// wrong. Values look like `eyJhbGci…` (older) or `sb_publishable_…` (newer);
+// supabase-js takes either.
+const anonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 let client: SupabaseClient | null = null;
 
