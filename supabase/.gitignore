@@ -1,0 +1,10 @@
+# Supabase CLI scratch state, written by `supabase link`.
+#
+# Machine-local and worth keeping out of the repo on principle: it records which
+# project this checkout is pointed at, and `pooler-url` holds a database
+# connection string. The CLI does not put the password in it — the one here is
+# username and host only — but a file whose shape is "connection string" is a
+# bad thing to have tracked in a public repository, because the day it does
+# contain a password is the day nobody re-reads it.
+.temp/
+.branches/
