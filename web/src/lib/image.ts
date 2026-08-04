@@ -24,8 +24,10 @@
  * an <img> element.
  */
 
+import type { Bytes } from "./crypto";
+
 export interface PreparedImage {
-  bytes: Uint8Array;
+  bytes: Bytes;
   width: number;
   height: number;
   /** Always "image/jpeg" or "image/webp" — never the original type. */
@@ -128,7 +130,7 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
  * stating rather than leaving implicit: the guarantee for documents comes
  * entirely from the envelope, not from sanitising the contents.
  */
-export async function prepareDocument(file: File): Promise<{ bytes: Uint8Array; type: string }> {
+export async function prepareDocument(file: File): Promise<{ bytes: Bytes; type: string }> {
   if (file.type.startsWith("image/")) {
     const image = await prepareImage(file, { maxEdge: 2200, targetBytes: 600 * 1024 });
     return { bytes: image.bytes, type: image.type };

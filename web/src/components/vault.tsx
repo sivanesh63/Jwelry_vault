@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVault } from "@/lib/store";
+import { usePhotoUrl } from "@/lib/photos";
 import {
   STATUS_TONE,
   daysBetween,
@@ -66,6 +67,16 @@ export const CATEGORIES: JewelryCategory[] = [
  * deterministic gradient keyed off the item id keeps the list visually
  * distinguishable without shipping fake stock imagery.
  */
+/**
+ * An item's first photo, or a coloured stand-in derived from its id.
+ *
+ * The fallback is not a placeholder waiting to be replaced — most items will
+ * never be photographed, and a grid of identical grey squares is far harder to
+ * scan than one where each piece has a stable colour and its category's icon.
+ *
+ * The photo path is decrypted on demand: there is no URL that renders this
+ * without the family key, because the object in the bucket is ciphertext.
+ */
 export function PhotoTile({
   item,
   className,
@@ -75,17 +86,28 @@ export function PhotoTile({
 }) {
   const Icon = CATEGORY_ICON[item.category];
   const hue = hashHue(item.id);
+  const { url } = usePhotoUrl(item.photos[0]);
+
   return (
     <div
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border",
         className,
       )}
-      style={{
-        background: `linear-gradient(140deg, hsl(${hue} 45% 88%), hsl(${(hue + 40) % 360} 40% 78%))`,
-      }}
+      style={
+        url
+          ? undefined
+          : {
+              background: `linear-gradient(140deg, hsl(${hue} 45% 88%), hsl(${(hue + 40) % 360} 40% 78%))`,
+            }
+      }
     >
-      <Icon className="size-1/3 text-black/35" strokeWidth={1.5} />
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="size-full object-cover" />
+      ) : (
+        <Icon className="size-1/3 text-black/35" strokeWidth={1.5} />
+      )}
     </div>
   );
 }

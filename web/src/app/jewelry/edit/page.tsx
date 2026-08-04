@@ -3,14 +3,49 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ImagePlus, ScanLine, Sparkles } from "lucide-react";
+import { ChevronLeft, ImagePlus, Loader2, ScanLine, Sparkles, X } from "lucide-react";
 import { useVault } from "@/lib/store";
+import { useKeyVault } from "@/lib/keyvault";
+import { uploadPhoto, usePhotoUrl } from "@/lib/photos";
 import { estimateValue, formatMoney, today } from "@/lib/format";
 import { categoryKey, usePurity, useT } from "@/lib/i18n";
 import { Button, Card, CardHeader, Field, Input, Select, Textarea } from "@/components/ui";
 import { CATEGORIES, useShowPrices } from "@/components/vault";
-import { newId } from "@/lib/utils";
+import { cn, newId } from "@/lib/utils";
 import type { JewelryCategory, JewelryItem } from "@/lib/types";
+
+/**
+ * One uploaded photo, decrypted for display.
+ *
+ * Removing takes it off the item but leaves the object in the bucket. Deleting
+ * is admin-only under the 0004 policies, and an orphaned encrypted blob costs a
+ * few hundred kilobytes — cheaper than a member being unable to correct a
+ * mistake, or a delete racing a save and losing a photo that is still listed.
+ */
+function PhotoThumb({ path, onRemove }: { path: string; onRemove: () => void }) {
+  const t = useT();
+  const { url, error } = usePhotoUrl(path);
+  return (
+    <div className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-border bg-surface-2">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="size-full object-cover" />
+      ) : (
+        <span className="flex size-full items-center justify-center text-xs text-muted">
+          {error ? "!" : <Loader2 className="size-4 animate-spin" />}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={t("edit.removePhoto")}
+        className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white"
+      >
+        <X className="size-3.5" />
+      </button>
+    </div>
+  );
+}
 
 export default function EditJewelryPage() {
   const t = useT();
@@ -53,9 +88,48 @@ function EditJewelry() {
     },
   );
   const [scanned, setScanned] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const { key: vaultKey } = useKeyVault();
 
   function set<K extends keyof JewelryItem>(key: K, value: JewelryItem[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  /**
+   * Uploads the chosen files and records their paths on the form.
+   *
+   * A new item gets its id here rather than at save time, because the storage
+   * path contains the item id and each envelope is bound to its path. Minting
+   * it during render would produce a different value on every pass and trip the
+   * React purity rules — this runs in a change handler, which is safe.
+   */
+  async function addPhotos(files: File[]) {
+    if (files.length === 0) return;
+    if (!vaultKey) {
+      setPhotoError(t("vault.locked"));
+      return;
+    }
+    setUploading(true);
+    setPhotoError(null);
+
+    const itemId = form.id || newId();
+    const added: string[] = [];
+    try {
+      for (const file of files) {
+        added.push(await uploadPhoto(vaultKey, state.settings.familyId, itemId, file));
+      }
+    } catch (e) {
+      // Whatever uploaded before the failure is kept: the files are already in
+      // the bucket, and dropping the paths would orphan them where nothing
+      // could ever find them again.
+      setPhotoError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (added.length > 0) {
+        setForm((f) => ({ ...f, id: itemId, photos: [...f.photos, ...added] }));
+      }
+      setUploading(false);
+    }
   }
 
   /**
@@ -106,15 +180,53 @@ function EditJewelry() {
         <div className="space-y-4">
           <Card>
             <CardHeader title={t("edit.photos")} description={t("edit.photosDesc")} />
-            <div className="flex gap-3 p-4">
-              <button
-                type="button"
-                className="flex size-24 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-xs text-muted transition-colors hover:bg-surface-2"
-              >
-                <ImagePlus className="size-5" />
-                {t("edit.addPhoto")}
-              </button>
-              <p className="max-w-xs self-center text-xs text-muted">{t("edit.photosNote")}</p>
+            <div className="space-y-3 p-4">
+              <div className="flex flex-wrap gap-3">
+                {form.photos.map((path) => (
+                  <PhotoThumb
+                    key={path}
+                    path={path}
+                    onRemove={() =>
+                      set("photos", form.photos.filter((p) => p !== path))
+                    }
+                  />
+                ))}
+
+                <label
+                  className={cn(
+                    "flex size-24 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-center text-xs text-muted transition-colors hover:bg-surface-2",
+                    uploading && "pointer-events-none opacity-60",
+                  )}
+                >
+                  {uploading ? (
+                    <Loader2 className="size-5 animate-spin" />
+                  ) : (
+                    <ImagePlus className="size-5" />
+                  )}
+                  <span className="px-1">{uploading ? t("edit.uploading") : t("edit.addPhoto")}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    // `capture` is deliberately absent: on a phone this offers
+                    // both the camera and the library, and most items are
+                    // photographed once and added later.
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      e.target.value = "";
+                      void addPhotos(files);
+                    }}
+                  />
+                </label>
+              </div>
+
+              {photoError ? (
+                <p role="alert" className="text-xs text-danger">
+                  {photoError}
+                </p>
+              ) : null}
+              <p className="text-xs text-muted">{t("edit.photosNote")}</p>
             </div>
           </Card>
 

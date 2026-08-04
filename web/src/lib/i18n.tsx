@@ -230,7 +230,9 @@ const en = {
   "edit.photosDesc": "Compressed on upload to stay inside free storage",
   "edit.addPhoto": "Add photo",
   "edit.photosNote":
-    "Photos are resized to roughly 400 KB in the browser before upload — the difference between fitting ~600 photos in the free tier and ~80.",
+    "Photos are resized to roughly 400 KB in the browser before upload — the difference between fitting ~600 photos in the free tier and ~80. Location data is removed.",
+  "edit.uploading": "Encrypting…",
+  "edit.removePhoto": "Remove photo",
   "edit.basics": "Basics",
   "edit.scanInvoice": "Scan invoice",
   "edit.name": "Name",
@@ -851,7 +853,9 @@ const ta: Record<MessageKey, string> = {
   "edit.photosDesc": "இலவச சேமிப்பில் அடங்க பதிவேற்றும்போது சுருக்கப்படும்",
   "edit.addPhoto": "படம் சேர்",
   "edit.photosNote":
-    "பதிவேற்றுவதற்கு முன் புகைப்படங்கள் உலாவியிலேயே சுமார் 400 KB அளவுக்குச் சுருக்கப்படும் — இலவசத் திட்டத்தில் ~600 படங்களா அல்லது ~80 படங்களா என்பதை இதுவே தீர்மானிக்கிறது.",
+    "பதிவேற்றுவதற்கு முன் புகைப்படங்கள் உலாவியிலேயே சுமார் 400 KB அளவுக்குச் சுருக்கப்படும் — இலவசத் திட்டத்தில் ~600 படங்களா அல்லது ~80 படங்களா என்பதை இதுவே தீர்மானிக்கிறது. இருப்பிடத் தகவலும் நீக்கப்படும்.",
+  "edit.uploading": "மறையாக்கப்படுகிறது…",
+  "edit.removePhoto": "படத்தை நீக்கு",
   "edit.basics": "அடிப்படை விவரங்கள்",
   "edit.scanInvoice": "விலைப்பட்டியலை ஸ்கேன் செய்",
   "edit.name": "பெயர்",
