@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { KeyRound, Loader2, MailPlus, ShieldCheck, UserMinus } from "lucide-react";
+import { KeyRound, Loader2, MailPlus, ShieldCheck, UserMinus, UserPlus } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
 import { useKeyVault, type PendingMember } from "@/lib/keyvault";
 import { estimateValue, formatMoneyShort, formatWeight, initialsOf } from "@/lib/format";
@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/lib/types";
 
 export default function MembersPage() {
-  const { state, currentUser, deactivateMember, reload } = useVault();
+  const { state, currentUser, setMemberActive, reload } = useVault();
   const { pendingAdmissions, enrolledMemberIds, admitMember, invite } = useKeyVault();
   const t = useT();
   const showPrices = useShowPrices();
@@ -236,16 +236,33 @@ export default function MembersPage() {
                 </div>
               ) : null}
 
-              {isAdmin && user.isActive && user.id !== currentUser.id ? (
+              {/*
+                Both directions. Deactivating sits one mistap from a member's
+                name and used to be a one-way door in the app — the only way
+                back was SQL, which is a poor answer for something this easy to
+                do by accident.
+              */}
+              {isAdmin && user.id !== currentUser.id ? (
                 <div className="border-t border-border px-4 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => deactivateMember(user.id)}
-                    className="flex items-center gap-1.5 text-sm text-muted hover:text-danger"
-                  >
-                    <UserMinus className="size-4" />
-                    {t("members.deactivate")}
-                  </button>
+                  {user.isActive ? (
+                    <button
+                      type="button"
+                      onClick={() => setMemberActive(user.id, false)}
+                      className="flex items-center gap-1.5 text-sm text-muted hover:text-danger"
+                    >
+                      <UserMinus className="size-4" />
+                      {t("members.deactivate")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setMemberActive(user.id, true)}
+                      className="flex items-center gap-1.5 text-sm text-gold hover:underline"
+                    >
+                      <UserPlus className="size-4" />
+                      {t("members.reactivate")}
+                    </button>
+                  )}
                 </div>
               ) : null}
             </Card>

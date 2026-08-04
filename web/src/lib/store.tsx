@@ -162,7 +162,7 @@ interface VaultContextValue {
   // No inviteMember here on purpose: creating a login needs the service_role
   // key, so it lives on useKeyVault and runs in an Edge Function. Nothing about
   // it is an encrypted record, which is all this store deals in.
-  deactivateMember: (userId: string) => void;
+  setMemberActive: (userId: string, isActive: boolean) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -723,12 +723,23 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // so it runs in the invite-member Edge Function rather than the browser —
   // there is no encrypted record for this store to write.
 
-  const deactivateMember = useCallback<VaultContextValue["deactivateMember"]>(
-    (userId) => {
+  /**
+   * Takes someone's access away, or gives it back.
+   *
+   * Both directions, because deactivating was previously a one-way door with no
+   * undo in the app — and it sits next to a member's name, one mistap away.
+   *
+   * Deactivating is immediate and total: `current_family_id()` requires
+   * `is_active`, so every RLS policy stops matching for them at once. It does
+   * not take back the family key they already hold, which is why a genuine
+   * departure needs a key rotation and not just this switch.
+   */
+  const setMemberActive = useCallback<VaultContextValue["setMemberActive"]>(
+    (userId, isActive) => {
       mutate(async () => {
         const { error: e } = await getSupabase()
           .from("members")
-          .update({ is_active: false })
+          .update({ is_active: isActive })
           .eq("id", userId);
         if (e) throw new Error(e.message);
       });
@@ -817,7 +828,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     saveLocker,
     recordLockerVisit,
     saveEvent,
-    deactivateMember,
+    setMemberActive,
     updateSettings,
     markNotificationRead,
     markAllNotificationsRead,
