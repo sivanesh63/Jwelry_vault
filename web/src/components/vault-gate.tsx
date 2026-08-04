@@ -394,18 +394,21 @@ function AwaitingAdmission() {
 type UnlockMode = "pin" | "passphrase" | "recovery";
 
 function Unlock() {
-  const { devices, unlockByPin, unlockByPassphrase, unlockByRecoveryKey, signOut } =
+  const { localDevice, unlockByPin, unlockByPassphrase, unlockByRecoveryKey, signOut } =
     useKeyVault();
   const { t } = useI18n();
   const { busy, error, run } = useSubmit();
 
-  // PIN only when this device actually has one. Offering it otherwise is a
-  // dead end, and a dead end on a lock screen reads as "I am locked out".
-  const [mode, setMode] = useState<UnlockMode>(devices.length > 0 ? "pin" : "passphrase");
+  // `localDevice`, never `devices`. A member with a PIN on their phone has an
+  // enrolment listed while sitting at a laptop that has never made one — the
+  // device secret does not travel. Offering a PIN there is not just a dead end:
+  // each attempt is charged against the phone's counter, so five tries on the
+  // laptop would lock the phone out for fifteen minutes.
+  const [mode, setMode] = useState<UnlockMode>(localDevice ? "pin" : "passphrase");
   const [pin, setPin] = useState("");
   const [secret, setSecret] = useState("");
 
-  const device = devices[0];
+  const device = localDevice;
 
   return (
     <Centered>
@@ -466,7 +469,7 @@ function Unlock() {
         </form>
 
         <div className="mt-4 space-y-1 text-center text-sm">
-          {mode !== "pin" && devices.length > 0 ? (
+          {mode !== "pin" && localDevice ? (
             <button type="button" className="text-gold-deep underline" onClick={() => setMode("pin")}>
               {t("vault.usePin")}
             </button>
@@ -593,7 +596,7 @@ function PinSetup({ onDone }: { onDone: () => void }) {
 // ---------------------------------------------------------------- gate ----
 
 export function VaultGate({ children }: { children: React.ReactNode }) {
-  const { status, devices } = useKeyVault();
+  const { status, localDevice } = useKeyVault();
   const { t } = useI18n();
   const [pinOffered, setPinOffered] = useState(false);
 
@@ -621,7 +624,12 @@ export function VaultGate({ children }: { children: React.ReactNode }) {
       // Offered once per session, right after the first passphrase unlock on a
       // device. Asking before the vault is open would mean asking somebody to
       // choose a PIN for something they have not seen yet.
-      if (devices.length === 0 && !pinOffered) {
+      //
+      // Keyed on this browser's own enrolment, not on whether the member has
+      // one anywhere. Having set a PIN on a phone is no reason for a laptop to
+      // stop offering one — they are separate secrets and each device needs its
+      // own.
+      if (!localDevice && !pinOffered) {
         return <PinSetup onDone={() => setPinOffered(true)} />;
       }
       return <>{children}</>;

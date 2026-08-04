@@ -46,7 +46,10 @@ import {
 import {
   enrolMember,
   enrolRecovery,
+  forgetDevice,
   generateFamilyKey,
+  rememberDeviceId,
+  rememberedDeviceId,
   seal,
   unlockWithPassphrase,
   unlockWithPin,
@@ -102,7 +105,17 @@ interface KeyVaultValue {
   memberId: string | null;
   familyId: string | null;
   isAdmin: boolean;
+  /** Every PIN enrolment this member has, across all their devices. */
   devices: DeviceSummary[];
+  /**
+   * The enrolment belonging to *this* browser, or null if it has none.
+   *
+   * The distinction is the whole reason a PIN is safe. `devices` may list a
+   * phone while you are sitting at a laptop that has never enrolled — offering
+   * a PIN box there cannot work, and worse, every attempt would be charged
+   * against the phone's counter until the phone locked itself out.
+   */
+  localDevice: DeviceSummary | null;
   error: string | null;
 
   signIn: (email: string, password: string) => Promise<void>;
@@ -145,6 +158,7 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [devices, setDevices] = useState<DeviceSummary[]>([]);
+  const [localDeviceId, setLocalDeviceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(
     isConfigured() ? null : "This build has no database configured.",
   );
@@ -199,15 +213,20 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     }
 
     const list = await rpc<Record<string, unknown>[]>("list_devices");
-    setDevices(
-      (list ?? []).map((d) => ({
-        id: d.id as string,
-        label: (d.label as string) || "",
-        lockedUntil: (d.locked_until as string) ?? null,
-        lastUsedAt: (d.last_used_at as string) ?? null,
-        createdAt: d.created_at as string,
-      })),
-    );
+    const summaries: DeviceSummary[] = (list ?? []).map((d) => ({
+      id: d.id as string,
+      label: (d.label as string) || "",
+      lockedUntil: (d.locked_until as string) ?? null,
+      lastUsedAt: (d.last_used_at as string) ?? null,
+      createdAt: d.created_at as string,
+    }));
+    setDevices(summaries);
+
+    // Only trust the remembered id if the server still lists it. An enrolment
+    // revoked from another device leaves a stale id here, and honouring it
+    // would offer a PIN box that can only ever fail.
+    const remembered = await rememberedDeviceId();
+    setLocalDeviceId(remembered && summaries.some((d) => d.id === remembered) ? remembered : null);
     // Everything exists. Whether the vault is actually open is decided by
     // whether the key is in hand, which `status` derives above.
     setSituation("locked");
@@ -477,13 +496,16 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
       const vaultKey = key;
       if (!vaultKey) throw new Error("Unlock the vault before setting a PIN");
       const wrap = await wrapForDevice(vaultKey, pin);
-      await rpc("enroll_device", {
+      const id = await rpc<string>("enroll_device", {
         p_label: label,
         p_wrapped: toPg(wrap.wrapped),
         p_pin_salt: toPg(wrap.pinSalt),
         p_iterations: wrap.iterations,
         p_key_version: vaultKey.version,
       });
+      // Recorded next to the device secret that opens it. Without this the
+      // enrolment exists on the server and no browser knows it is theirs.
+      await rememberDeviceId(id);
       await refresh();
     },
     [key, refresh],
@@ -496,9 +518,13 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
         .delete()
         .eq("id", deviceId);
       if (e) throw new Error(e.message);
+      // Revoking this browser's own enrolment should also destroy the secret
+      // that opened it, so a re-enrolment starts genuinely fresh rather than
+      // reusing a device secret the user just tried to get rid of.
+      if (deviceId === localDeviceId) await forgetDevice();
       await refresh();
     },
-    [refresh],
+    [localDeviceId, refresh],
   );
 
   const value = useMemo<KeyVaultValue>(
@@ -509,6 +535,7 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
       familyId,
       isAdmin,
       devices,
+      localDevice: devices.find((d) => d.id === localDeviceId) ?? null,
       error,
       signIn,
       signOut,
@@ -523,7 +550,7 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
       refresh,
     }),
     [
-      status, key, memberId, familyId, isAdmin, devices, error,
+      status, key, memberId, familyId, isAdmin, devices, localDeviceId, error,
       signIn, signOut, createVault, enrol, unlockByPassphrase, unlockByPin,
       unlockByRecoveryKey, addPin, removeDevice, lock, refresh,
     ],

@@ -433,6 +433,16 @@ const DB_NAME = "jv-keys";
 const STORE = "device";
 const DEVICE_KEY_ID = "device-secret-v1";
 
+// Which member_devices row this browser enrolled.
+//
+// Kept beside the device secret rather than in localStorage on purpose: the two
+// are only meaningful together. An id without its secret points at an enrolment
+// this browser cannot open, and offering a PIN box for it would burn attempts
+// against a *different* device's counter — five of those and the family
+// member's actual phone is locked out for fifteen minutes by somebody typing on
+// a laptop. Clearing one clears the other.
+const DEVICE_ENROLMENT_ID = "device-enrolment-v1";
+
 function idb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
@@ -442,15 +452,15 @@ function idb(): Promise<IDBDatabase> {
   });
 }
 
-function idbGet(db: IDBDatabase, key: string): Promise<CryptoKey | undefined> {
+function idbGet<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     const req = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
-    req.onsuccess = () => resolve(req.result as CryptoKey | undefined);
+    req.onsuccess = () => resolve(req.result as T | undefined);
     req.onerror = () => reject(req.error);
   });
 }
 
-function idbPut(db: IDBDatabase, key: string, value: CryptoKey): Promise<void> {
+function idbPut(db: IDBDatabase, key: string, value: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put(value, key);
@@ -468,7 +478,7 @@ function idbPut(db: IDBDatabase, key: string, value: CryptoKey): Promise<void> {
  */
 async function deviceSecret(): Promise<Bytes> {
   const db = await idb();
-  let key = await idbGet(db, DEVICE_KEY_ID);
+  let key = await idbGet<CryptoKey>(db, DEVICE_KEY_ID);
   if (!key) {
     key = await subtle().generateKey({ name: "HMAC", hash: "SHA-256", length: 256 }, false, [
       "sign",
@@ -483,12 +493,36 @@ async function deviceSecret(): Promise<Bytes> {
   return new Uint8Array(mac);
 }
 
-/** Wipes the device secret, which makes every PIN enrolment on it undecryptable. */
+/**
+ * The member_devices row this browser enrolled, if any.
+ *
+ * Null on a device that has never set a PIN here — including one where another
+ * device in the family has. Enrolments are not shared: the wrapped key is
+ * bound to a secret that never leaves the browser that made it.
+ */
+export async function rememberedDeviceId(): Promise<string | null> {
+  try {
+    const db = await idb();
+    return (await idbGet<string>(db, DEVICE_ENROLMENT_ID)) ?? null;
+  } catch {
+    // Private browsing, or IndexedDB disabled. Not an error worth surfacing —
+    // it just means no PIN here, and the passphrase still works.
+    return null;
+  }
+}
+
+export async function rememberDeviceId(id: string): Promise<void> {
+  const db = await idb();
+  await idbPut(db, DEVICE_ENROLMENT_ID, id);
+}
+
+/** Wipes the device secret, which makes every PIN enrolment here undecryptable. */
 export async function forgetDevice(): Promise<void> {
   const db = await idb();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).delete(DEVICE_KEY_ID);
+    tx.objectStore(STORE).delete(DEVICE_ENROLMENT_ID);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
