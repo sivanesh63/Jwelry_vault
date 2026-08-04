@@ -24,11 +24,12 @@ import type { Role } from "@/lib/types";
 
 export default function MembersPage() {
   const { state, currentUser, deactivateMember, reload } = useVault();
-  const { pendingAdmissions, admitMember, invite } = useKeyVault();
+  const { pendingAdmissions, enrolledMemberIds, admitMember, invite } = useKeyVault();
   const t = useT();
   const showPrices = useShowPrices();
   const [inviting, setInviting] = useState(false);
   const [pending, setPending] = useState<PendingMember[]>([]);
+  const [enrolled, setEnrolled] = useState<Set<string> | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -36,11 +37,14 @@ export default function MembersPage() {
   const items = activeItems(state);
 
   const loadPending = useCallback(() => {
+    void enrolledMemberIds()
+      .then(setEnrolled)
+      .catch(() => setEnrolled(null));
     if (!isAdmin) return;
     void pendingAdmissions()
       .then(setPending)
       .catch((e: unknown) => setProblem(e instanceof Error ? e.message : String(e)));
-  }, [isAdmin, pendingAdmissions]);
+  }, [enrolledMemberIds, isAdmin, pendingAdmissions]);
 
   useEffect(loadPending, [loadPending]);
 
@@ -158,6 +162,24 @@ export default function MembersPage() {
                       {t(user.role === "admin" ? "members.roleAdmin" : "members.roleMember")}
                     </Badge>
                     {user.id === currentUser.id ? <Badge>{t("common.you")}</Badge> : null}
+                    {/*
+                      Being listed here is not the same as being able to read
+                      anything. An invited member appears the instant their row
+                      exists, which is before they have signed in and long
+                      before an admin has handed over the key — and an admin who
+                      assumes the job is done leaves them staring at a locked
+                      vault waiting for a step nobody knows is outstanding.
+                    */}
+                    {enrolled && user.isActive && !enrolled.has(user.id) ? (
+                      <Badge tone="bg-warn/10 text-warn border-warn/30">
+                        {t("members.notSignedIn")}
+                      </Badge>
+                    ) : null}
+                    {pending.some((p) => p.memberId === user.id) ? (
+                      <Badge tone="bg-warn/10 text-warn border-warn/30">
+                        {t("members.notAdmitted")}
+                      </Badge>
+                    ) : null}
                     {!user.isActive ? (
                       <Badge tone="bg-danger/10 text-danger border-danger/30">
                         {t("members.inactive")}

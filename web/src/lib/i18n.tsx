@@ -238,6 +238,8 @@ const en = {
   "members.pendingBody":
     "They have signed in and set a passphrase. Admitting them hands over the key that decrypts the vault — done here, on your device.",
   "members.admit": "Admit",
+  "members.notSignedIn": "Has not signed in yet",
+  "members.notAdmitted": "Cannot read the vault yet",
   "members.inviteThenAdmit":
     "They get an email to set a password. Once they have signed in and chosen a passphrase, come back here and admit them — until then they can see nothing.",
   "settings.storage": "Photo storage",
@@ -873,6 +875,8 @@ const ta: Record<MessageKey, string> = {
   "members.pendingBody":
     "அவர்கள் உள்நுழைந்து கடவுத்தொடரை அமைத்துவிட்டார்கள். நீங்கள் அனுமதித்தால் பெட்டகத்தை மறைநீக்கும் விசை அவர்களுக்குக் கிடைக்கும் — அது உங்கள் சாதனத்திலேயே நடக்கிறது.",
   "members.admit": "அனுமதி",
+  "members.notSignedIn": "இன்னும் உள்நுழையவில்லை",
+  "members.notAdmitted": "இன்னும் பெட்டகத்தைப் பார்க்க முடியாது",
   "members.inviteThenAdmit":
     "கடவுச்சொல் அமைக்க அவர்களுக்கு மின்னஞ்சல் செல்லும். அவர்கள் உள்நுழைந்து கடவுத்தொடரைத் தேர்ந்தெடுத்த பிறகு இங்கே வந்து அனுமதியுங்கள் — அதுவரை அவர்களுக்கு எதுவும் தெரியாது.",
   "settings.storage": "படச் சேமிப்பு",

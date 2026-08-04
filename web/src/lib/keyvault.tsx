@@ -141,6 +141,14 @@ interface KeyVaultValue {
 
   /** Members who have enrolled a key but have not been let into the vault. */
   pendingAdmissions: () => Promise<PendingMember[]>;
+  /**
+   * Ids of members who have signed in and chosen a passphrase.
+   *
+   * Public keys are family-readable — that is how anyone gets admitted — so
+   * this needs no privileged call. It is the difference between "invited" and
+   * "has actually turned up", which the members list otherwise cannot show.
+   */
+  enrolledMemberIds: () => Promise<Set<string>>;
   /** Wraps the family key to that member's public key. Admin only. */
   admitMember: (memberId: string, publicKey: Bytes) => Promise<void>;
   /** Creates a login, via the Edge Function that holds the service_role key. */
@@ -536,6 +544,14 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const enrolledMemberIds = useCallback(async (): Promise<Set<string>> => {
+    const { data, error: e } = await getSupabase()
+      .from("member_public_keys")
+      .select("member_id");
+    if (e) throw new Error(e.message);
+    return new Set((data ?? []).map((r) => r.member_id as string));
+  }, []);
+
   const admitMember = useCallback(
     async (memberId: string, publicKey: Bytes) => {
       if (!key) throw new Error("Unlock the vault before admitting anyone");
@@ -627,6 +643,7 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
       unlockByPin,
       unlockByRecoveryKey,
       pendingAdmissions,
+      enrolledMemberIds,
       admitMember,
       invite,
       addPin,
@@ -637,7 +654,7 @@ export function KeyVaultProvider({ children }: { children: ReactNode }) {
     [
       status, key, memberId, familyId, isAdmin, devices, localDeviceId, error,
       signIn, signOut, createVault, enrol, unlockByPassphrase, unlockByPin,
-      unlockByRecoveryKey, pendingAdmissions, admitMember, invite,
+      unlockByRecoveryKey, pendingAdmissions, enrolledMemberIds, admitMember, invite,
       addPin, removeDevice, lock, refresh,
     ],
   );
