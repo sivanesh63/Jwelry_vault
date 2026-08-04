@@ -106,6 +106,37 @@ body {
   line-height: 1.65;
 }
 
+/*
+ * Nothing may push the page sideways.
+ *
+ * A single overflowing descendant anywhere makes every screen look misaligned:
+ * the content sits wider than the viewport, and because the page can then be
+ * scrolled horizontally, the right-hand edge of every card appears clipped
+ * while the left keeps its padding. It reads as "the layout is broken" rather
+ * than "one element is too wide", which is why it is worth stopping at the root
+ * rather than only where it happens to originate.
+ *
+ * `clip`, not `hidden`. `overflow-x: hidden` turns the element into a scroll
+ * container, which silently breaks `position: sticky` — and the app's header
+ * and mobile nav both depend on it. `clip` trims without that side effect.
+ */
+html,
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+/*
+ * Grid and flex children do not shrink below their content by default
+ * (`min-width: auto`), so one long word in a card is enough to widen the whole
+ * column. Everything in this app is user text — item names, locker branches,
+ * people's own words — so the default is wrong here more often than it is
+ * right.
+ */
+main :where(.grid) > * {
+  min-width: 0;
+}
+
 /* Numeric columns (weights, money) line up when tabular. */
 .tabular {
   font-variant-numeric: tabular-nums;
