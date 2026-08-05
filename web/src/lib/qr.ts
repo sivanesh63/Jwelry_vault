@@ -84,6 +84,99 @@ export function parseScanned(raw: string): string | null {
 }
 
 /**
+ * The QR as a PNG, with the item's name printed underneath.
+ *
+ * Painted module by module onto a canvas rather than rasterising the SVG. The
+ * SVG route means loading it through an Image element, which brings CORS
+ * tainting, font substitution and a load event to wait on — all for a picture
+ * of squares this code already knows the coordinates of.
+ *
+ * The caption is the reason this is worth downloading at all. Five bare QR
+ * files in a downloads folder are indistinguishable; with the name on the image
+ * you can lay them out, print a sheet, and cut them up without once guessing
+ * which is which.
+ */
+export async function qrPngBlob(
+  text: string,
+  caption: string,
+  options: QrOptions & { scale?: number } = {},
+): Promise<Blob> {
+  const { level = "M", margin = 4, scale = 12 } = options;
+
+  const qr = qrcode(0, level);
+  qr.addData(text);
+  qr.make();
+
+  const count = qr.getModuleCount();
+  const side = (count + margin * 2) * scale;
+  const captionHeight = caption ? Math.round(side * 0.14) : 0;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = side;
+  canvas.height = side + captionHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not draw the QR code");
+
+  // White across the whole canvas, including under the caption. A transparent
+  // PNG printed on anything but white paper stops scanning.
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#000";
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (qr.isDark(row, col)) {
+        ctx.fillRect((col + margin) * scale, (row + margin) * scale, scale, scale);
+      }
+    }
+  }
+
+  if (caption) {
+    const fontSize = Math.round(captionHeight * 0.42);
+    ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // Trimmed to fit rather than allowed to run off the edge. A name that
+    // overflows would be silently cut mid-word by the canvas bounds.
+    let label = caption;
+    while (label.length > 4 && ctx.measureText(label).width > side * 0.9) {
+      label = `${label.slice(0, -2)}…`;
+    }
+    ctx.fillText(label, side / 2, side + captionHeight / 2);
+  }
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Could not encode the PNG"))),
+      "image/png",
+    );
+  });
+}
+
+/** Saves a blob under a filename a file manager will accept. */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  // Revoked on the next tick: revoking synchronously can cancel the download
+  // before the browser has read the blob.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/** Strips what Windows, macOS and Android each refuse in a filename. */
+export function safeFilename(name: string, fallback: string): string {
+  const cleaned = name
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+  return cleaned.length > 0 ? cleaned : fallback;
+}
+
+/**
  * An SVG path covering every dark module.
  *
  * One path rather than a rect per module: a version-4 code is ~1,300 modules,

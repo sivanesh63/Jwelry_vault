@@ -207,6 +207,7 @@ const en = {
   "item.labelDesc": "Stable ID — printed labels never need reprinting",
   "item.labelHint": "Print this and keep it with the item. Any phone camera opens the vault here.",
   "item.printLabel": "Print label",
+  "item.downloadLabel": "Download",
   "item.openScanner": "Open scanner",
   "item.archive": "Archive item",
   "item.archiveConfirm": "Archive this item?",
@@ -866,6 +867,7 @@ const ta: Record<MessageKey, string> = {
   "item.labelHint":
     "இதை அச்சிட்டு பொருளுடன் வையுங்கள். எந்தத் தொலைபேசி கேமராவும் பெட்டகத்தை இங்கே திறக்கும்.",
   "item.printLabel": "லேபிளை அச்சிடு",
+  "item.downloadLabel": "பதிவிறக்கு",
   "item.openScanner": "ஸ்கேனரைத் திற",
   "item.archive": "நகையைக் காப்பகப்படுத்து",
   "item.archiveConfirm": "இந்த நகையைக் காப்பகப்படுத்தலாமா?",

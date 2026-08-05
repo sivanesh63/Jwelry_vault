@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   Archive,
   ChevronLeft,
+  Download,
   FileText,
   Hammer,
   PackageCheck,
@@ -17,7 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useVault } from "@/lib/store";
-import { itemUrl, useOrigin } from "@/lib/qr";
+import { downloadBlob, itemUrl, qrPngBlob, safeFilename, useOrigin } from "@/lib/qr";
 import { QrCodeSvg } from "@/components/qr-code";
 import {
   addDays,
@@ -337,6 +338,18 @@ function JewelryDetail() {
                 <p className="text-sm text-muted">{t("item.labelHint")}</p>
                 <p className="truncate font-mono text-xs text-muted">{item.id}</p>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => {
+                      void qrPngBlob(itemUrl(origin, item.id), item.name).then((blob) =>
+                        downloadBlob(blob, `${safeFilename(item.name, "vault-label")}.png`),
+                      );
+                    }}
+                  >
+                    <Download className="size-4" />
+                    {t("item.downloadLabel")}
+                  </Button>
                   <Button size="sm" onClick={() => window.print()}>
                     <Printer className="size-4" />
                     {t("item.printLabel")}
