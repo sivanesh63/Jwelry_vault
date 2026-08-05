@@ -1,12 +1,23 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Camera, CheckCircle2, QrCode, ScanLine, TriangleAlert } from "lucide-react";
 import { activeItems, useVault } from "@/lib/store";
+import { parseScanned } from "@/lib/qr";
+import { QrScanner } from "@/components/qr-scanner";
 import { useT } from "@/lib/i18n";
-import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Select } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Input,
+  PageHeader,
+  Select,
+} from "@/components/ui";
 import { ItemRow, StatusBadge } from "@/components/vault";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +41,9 @@ function Scan() {
   const [scannedId, setScannedId] = useState<string | null>(prefill);
   const [verifyLocker, setVerifyLocker] = useState(state.lockers[0]?.id ?? "");
   const [seen, setSeen] = useState<string[]>([]);
-  const [cursor, setCursor] = useState(0);
+  const [scanning, setScanning] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [unknown, setUnknown] = useState(false);
 
   const item = itemById(scannedId ?? undefined);
   const expected = activeItems(state).filter(
@@ -39,20 +52,32 @@ function Scan() {
   const missing = expected.filter((i) => !seen.includes(i.id));
 
   /**
-   * Stands in for html5-qrcode. Steps through items in order rather than picking
-   * randomly, so a demo run is repeatable.
+   * Takes whatever the camera read and turns it into an item.
+   *
+   * A label encodes a URL, so this has to survive being handed one — and being
+   * handed a bare id by somebody who typed it in from an item screen.
+   * Unrecognised codes are reported rather than ignored: silence looks
+   * identical to a camera that is not working.
    */
-  function simulateScan() {
-    if (mode === "verify") {
-      const next = expected.find((i) => !seen.includes(i.id));
-      if (next) setSeen((prev) => [...prev, next.id]);
-      return;
-    }
-    const pool = activeItems(state);
-    if (pool.length === 0) return;
-    setScannedId(pool[cursor % pool.length].id);
-    setCursor((c) => c + 1);
-  }
+  const handleScan = useCallback(
+    (raw: string) => {
+      const id = parseScanned(raw);
+      if (!id || !itemById(id)) {
+        setUnknown(true);
+        return;
+      }
+      setUnknown(false);
+      if (mode === "verify") {
+        // Verifying is a tally, not a lookup — scanning the same pouch twice
+        // must not count it twice.
+        setSeen((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      } else {
+        setScannedId(id);
+        setScanning(false);
+      }
+    },
+    [itemById, mode],
+  );
 
   return (
     <>
@@ -79,18 +104,60 @@ function Scan() {
         ))}
       </div>
 
-      {/* Camera viewfinder placeholder — html5-qrcode mounts here in Phase 3. */}
       <Card className="mb-4">
-        <div className="flex aspect-video flex-col items-center justify-center gap-3 bg-surface-2 text-muted">
-          <div className="relative">
-            <Camera className="size-10" />
-            <ScanLine className="absolute inset-x-0 top-1/2 size-10 animate-pulse text-gold" />
+        {scanning ? (
+          <>
+            <QrScanner onScan={handleScan} className="p-3" />
+            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+              <p className="text-sm text-muted">{t("scan.pointAtLabel")}</p>
+              <Button size="sm" onClick={() => setScanning(false)}>
+                {t("scan.stopCamera")}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-3 p-6 text-muted">
+            <div className="relative">
+              <Camera className="size-10" />
+              <ScanLine className="absolute inset-x-0 top-1/2 size-10 animate-pulse text-gold" />
+            </div>
+            <p className="max-w-md text-center text-sm">{t("scan.cameraNote")}</p>
+            <Button variant="primary" size="sm" onClick={() => setScanning(true)}>
+              <QrCode className="size-4" />
+              {t("scan.startCamera")}
+            </Button>
           </div>
-          <p className="max-w-md px-6 text-center text-sm">{t("scan.cameraNote")}</p>
-          <Button variant="primary" size="sm" onClick={simulateScan}>
-            <QrCode className="size-4" />
-            {t("scan.simulate")}
-          </Button>
+        )}
+
+        {/*
+          Typing the id is not a poor relation of scanning. A scuffed sticker,
+          a denied camera permission, or a phone with no working rear camera all
+          end here, and every one of them is a real Tuesday.
+        */}
+        <div className="border-t border-border p-4">
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleScan(typed);
+              setTyped("");
+            }}
+          >
+            <Input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={t("scan.enterIdPlaceholder")}
+              aria-label={t("scan.enterId")}
+            />
+            <Button type="submit" disabled={typed.trim().length === 0}>
+              {t("scan.lookUp")}
+            </Button>
+          </form>
+          {unknown ? (
+            <p role="alert" className="mt-2 text-sm text-danger">
+              {t("scan.unknownCode")}
+            </p>
+          ) : null}
         </div>
       </Card>
 

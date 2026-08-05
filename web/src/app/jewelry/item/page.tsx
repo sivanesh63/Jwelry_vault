@@ -11,11 +11,14 @@ import {
   Hammer,
   PackageCheck,
   Pencil,
+  Printer,
   QrCode,
   Undo2,
   Upload,
 } from "lucide-react";
 import { useVault } from "@/lib/store";
+import { itemUrl, useOrigin } from "@/lib/qr";
+import { QrCodeSvg } from "@/components/qr-code";
 import {
   addDays,
   estimateValue,
@@ -84,6 +87,7 @@ function JewelryDetail() {
     archiveItem,
     extendReturn,
   } = useVault();
+  const origin = useOrigin();
 
   const [serviceOpen, setServiceOpen] = useState(false);
   const [collectOpen, setCollectOpen] = useState(false);
@@ -320,13 +324,28 @@ function JewelryDetail() {
           <Card>
             <CardHeader title={t("item.label")} description={t("item.labelDesc")} />
             <div className="flex items-center gap-4 p-4">
-              <QrPlaceholder value={item.id} />
-              <div className="min-w-0">
-                <p className="truncate font-mono text-sm">{item.id}</p>
-                <LinkButton href={`/scan/?id=${item.id}`} size="sm" className="mt-2">
-                  <QrCode className="size-4" />
-                  {t("item.openScanner")}
-                </LinkButton>
+              {/*
+                Encodes a URL, so the phone's own camera app opens the vault on
+                this item — no scanner, nothing installed, works from the lock
+                screen. The in-app scanner is for counting a locker, not for
+                finding one thing.
+              */}
+              <div className="shrink-0 rounded-lg border border-border bg-white p-2 print:border-0">
+                <QrCodeSvg value={itemUrl(origin, item.id)} className="size-28" />
+              </div>
+              <div className="min-w-0 space-y-2 print:hidden">
+                <p className="text-sm text-muted">{t("item.labelHint")}</p>
+                <p className="truncate font-mono text-xs text-muted">{item.id}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => window.print()}>
+                    <Printer className="size-4" />
+                    {t("item.printLabel")}
+                  </Button>
+                  <LinkButton href="/scan/" size="sm">
+                    <QrCode className="size-4" />
+                    {t("item.openScanner")}
+                  </LinkButton>
+                </div>
               </div>
             </div>
           </Card>
@@ -512,26 +531,7 @@ function ExtendModal({
 }
 
 /**
- * Deterministic QR-like block from the item id.
- * A placeholder for the real `qrcode` render in Phase 3 — the point here is that
- * the id is stable and printable, which is the decision that has to be right now.
+ * The QR placeholder that used to live here is gone — QrCodeSvg renders a real,
+ * scannable code now. It was a deterministic block of squares that looked the
+ * part and encoded nothing.
  */
-function QrPlaceholder({ value }: { value: string }) {
-  const cells: boolean[] = [];
-  let h = 7;
-  for (let i = 0; i < value.length; i++) h = (h * 31 + value.charCodeAt(i)) >>> 0;
-  for (let i = 0; i < 49; i++) {
-    h = (h * 1103515245 + 12345) >>> 0;
-    cells.push(((h >> 16) & 1) === 1);
-  }
-  return (
-    <div
-      className="grid size-20 shrink-0 grid-cols-7 gap-px rounded border border-border bg-surface p-1"
-      aria-hidden="true"
-    >
-      {cells.map((on, i) => (
-        <span key={i} className={on ? "bg-text" : "bg-transparent"} />
-      ))}
-    </div>
-  );
-}
