@@ -108,8 +108,18 @@ function Scan() {
         {scanning ? (
           <>
             <QrScanner onScan={handleScan} className="p-3" />
-            <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
-              <p className="text-sm text-muted">{t("scan.pointAtLabel")}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+              {/*
+                While counting a locker your eyes are on the pouches, not on the
+                list further down the page. The tally goes directly under the
+                viewfinder so you can tell you are making progress without
+                looking away.
+              */}
+              <p className="text-sm font-medium tabular-nums">
+                {mode === "verify"
+                  ? t("scan.confirmedOf", { seen: seen.length, total: expected.length })
+                  : t("scan.pointAtLabel")}
+              </p>
               <Button size="sm" onClick={() => setScanning(false)}>
                 {t("scan.stopCamera")}
               </Button>
@@ -149,7 +159,7 @@ function Scan() {
               placeholder={t("scan.enterIdPlaceholder")}
               aria-label={t("scan.enterId")}
             />
-            <Button type="submit" disabled={typed.trim().length === 0}>
+            <Button type="submit" className="shrink-0" disabled={typed.trim().length === 0}>
               {t("scan.lookUp")}
             </Button>
           </form>

@@ -137,6 +137,59 @@ main :where(.grid) > * {
   min-width: 0;
 }
 
+/*
+ * Printing a label prints the label, not the page it sits on.
+ *
+ * window.print() prints everything: navigation, movement history, the whole
+ * specification table, with a thumbnail-sized code somewhere in the middle.
+ * The visibility trick is the reliable way to isolate one element — display:
+ * none on ancestors would take the target down with them, whereas visibility
+ * is inherited and can be turned back on for a descendant.
+ */
+.qr-label-name {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .qr-label,
+  .qr-label * {
+    visibility: visible;
+  }
+
+  .qr-label {
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4mm;
+    padding: 10mm;
+    border: 0;
+    background: #fff;
+  }
+
+  /* Real-world units, because this ends up on a sticker. 45mm scans reliably
+     from a phone's usual arm's length without wasting half a sheet. */
+  .qr-label svg {
+    width: 45mm;
+    height: 45mm;
+  }
+
+  .qr-label-name {
+    display: block;
+    max-width: 60mm;
+    font-size: 11pt;
+    font-weight: 600;
+    text-align: center;
+    color: #000;
+  }
+}
+
 /* Numeric columns (weights, money) line up when tabular. */
 .tabular {
   font-variant-numeric: tabular-nums;

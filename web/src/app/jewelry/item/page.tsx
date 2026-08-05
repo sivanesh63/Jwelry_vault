@@ -330,9 +330,22 @@ function JewelryDetail() {
                 this item — no scanner, nothing installed, works from the lock
                 screen. The in-app scanner is for counting a locker, not for
                 finding one thing.
+
+                `qr-label` is what the print rules in globals.css key off. Without
+                it, printing produced the entire page — navigation, movement
+                history, specification table — with a 112px code somewhere in the
+                middle, which is not a label anybody can stick to a pouch.
               */}
-              <div className="shrink-0 rounded-lg border border-border bg-white p-2 print:border-0">
-                <QrCodeSvg value={itemUrl(origin, item.id)} className="size-28" />
+              <div className="qr-label shrink-0 rounded-lg border border-border bg-white p-2">
+                {/*
+                  A 37-module code at 112px is barely three pixels a module.
+                  That scans, but only just — and screens get scanned, because
+                  the quickest way to hand somebody an item is to hold your
+                  phone up to theirs.
+                */}
+                <QrCodeSvg value={itemUrl(origin, item.id)} className="size-32 sm:size-36" />
+                {/* Printed only. On screen the name is already the heading. */}
+                <p className="qr-label-name">{item.name}</p>
               </div>
               <div className="min-w-0 space-y-2 print:hidden">
                 <p className="text-sm text-muted">{t("item.labelHint")}</p>

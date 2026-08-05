@@ -33,7 +33,10 @@ export function QrCodeSvg({
       // a coloured sticker, a transparent background makes it unreadable, and
       // the failure only shows up after the sheet is printed.
       style={{ background: "#fff" }}
-      role="img"
+      // Hidden from screen readers, and no role: announcing "image" for a
+      // pattern of squares tells somebody nothing they can use. The item id
+      // sits next to it as selectable text, which is the accessible version of
+      // the same information.
       aria-hidden="true"
       // Crisp edges matter: at sticker size the modules are barely a
       // millimetre, and antialiasing blurs the boundary a reader depends on.
